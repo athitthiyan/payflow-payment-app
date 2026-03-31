@@ -224,6 +224,7 @@ export class TransactionHistoryComponent implements OnInit {
   transactions = signal<Transaction[]>([]);
   loading = signal(true);
   total = signal(0);
+  loadError = signal(false);
   page = 1;
   statusFilter = '';
 
@@ -245,13 +246,16 @@ export class TransactionHistoryComponent implements OnInit {
       next: res => {
         this.transactions.set(res.transactions);
         this.total.set(res.total);
+        this.loadError.set(false);
         this.loading.set(false);
         this.updateStats(res.transactions);
       },
       error: () => {
-        this.transactions.set(this.getMockTransactions());
-        this.total.set(5);
+        this.transactions.set([]);
+        this.total.set(0);
+        this.loadError.set(true);
         this.loading.set(false);
+        this.updateStats([]);
       },
     });
   }
@@ -286,12 +290,4 @@ export class TransactionHistoryComponent implements OnInit {
     this.stats[3].value = `$${revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
   }
 
-  private getMockTransactions(): Transaction[] {
-    return [
-      { id:1, booking_id:1, transaction_ref:'TXN-ABC12345', amount:987.50, currency:'USD', payment_method:'card', card_last4:'4242', card_brand:'Visa', status:'success', created_at:new Date().toISOString(), booking:{ id:1, booking_ref:'BK12345678', user_name:'Sarah Mitchell', email:'sarah@example.com', room:{ hotel_name:'The Grand Azure', image_url:'', location:'Manhattan, New York' }, check_in:new Date().toISOString(), check_out:new Date().toISOString(), nights:3 } },
-      { id:2, booking_id:2, transaction_ref:'TXN-DEF67890', amount:504.00, currency:'USD', payment_method:'card', card_last4:'5555', card_brand:'Mastercard', status:'success', created_at:new Date(Date.now()-86400000).toISOString(), booking:{ id:2, booking_ref:'BK87654321', user_name:'James Park', email:'james@example.com', room:{ hotel_name:'Serenity Beach Resort', image_url:'', location:'Bali, Indonesia' }, check_in:new Date().toISOString(), check_out:new Date().toISOString(), nights:2 } },
-      { id:3, booking_id:3, transaction_ref:'TXN-GHI11223', amount:336.00, currency:'USD', payment_method:'card', card_last4:'0002', card_brand:'Visa', status:'failed', failure_reason:'Card declined', created_at:new Date(Date.now()-172800000).toISOString(), booking:{ id:3, booking_ref:'BK11223344', user_name:'Priya Sharma', email:'priya@example.com', room:{ hotel_name:'Alpine Summit Lodge', image_url:'', location:'Zermatt, Switzerland' }, check_in:new Date().toISOString(), check_out:new Date().toISOString(), nights:1 } },
-      { id:4, booking_id:4, transaction_ref:'TXN-JKL44556', amount:620.00, currency:'USD', payment_method:'mock', status:'success', created_at:new Date(Date.now()-259200000).toISOString(), booking:{ id:4, booking_ref:'BK44556677', user_name:'Kenji Tanaka', email:'kenji@example.com', room:{ hotel_name:'Kyoto Garden Inn', image_url:'', location:'Gion District, Kyoto' }, check_in:new Date().toISOString(), check_out:new Date().toISOString(), nights:2 } },
-    ];
-  }
 }

@@ -103,7 +103,7 @@ type CardBrand = 'visa' | 'mastercard' | 'amex' | 'unknown';
 
                 <!-- Test cards info -->
                 <div class="test-cards-info">
-                  <p><strong>Test cards:</strong> 4242 4242 4242 4242 (success) · 4000 0000 0000 0002 (decline)</p>
+                  <p><strong>Test cards:</strong> 4242 4242 4242 4242 (success) Â· 4000 0000 0000 0002 (decline)</p>
                   <p>Use any future date and any 3-digit CVV.</p>
                 </div>
 
@@ -663,6 +663,7 @@ export class PaymentFormComponent implements OnInit {
   bookingRef = signal('');
   bookingAmount = signal(0);
   cardBrandIcon = signal('Card');
+  bookingLoadError = signal('');
 
   cardForm = { name: '', number: '', expiry: '', cvv: '' };
 
@@ -685,18 +686,23 @@ export class PaymentFormComponent implements OnInit {
         next: b => {
           this.booking.set(b);
           this.bookingAmount.set(b.total_amount);
+          this.bookingLoadError.set('');
         },
         error: () => {
-          // Mock fallback
-          this.bookingAmount.set(987.5);
+          this.booking.set(null);
+          this.bookingAmount.set(0);
+          this.bookingLoadError.set('Unable to load booking details.');
         }
       });
     } else {
-      this.bookingAmount.set(987.5);
+      this.bookingLoadError.set('Missing booking details.');
     }
   }
 
   processMockPayment(success: boolean) {
+    if (!this.bookingId() || !this.booking()) {
+      return;
+    }
     this.step.set('processing');
     this.runProcessingAnimation().then(() => {
       if (success) {
@@ -711,8 +717,7 @@ export class PaymentFormComponent implements OnInit {
             error: () => this.router.navigate(['/success'], { queryParams: { ref: txnRef, amount: this.bookingAmount() } }),
           });
         } else {
-          const ref = 'TXN-' + Math.random().toString(36).substring(2, 12).toUpperCase();
-          this.router.navigate(['/success'], { queryParams: { ref, amount: this.bookingAmount() } });
+          this.router.navigate(['/failure'], { queryParams: { reason: 'Booking details unavailable' } });
         }
       } else {
         this.router.navigate(['/failure'], { queryParams: { booking_id: this.bookingId(), reason: 'Card declined' } });
@@ -721,6 +726,9 @@ export class PaymentFormComponent implements OnInit {
   }
 
   processCardPayment() {
+    if (!this.bookingAmount()) {
+      return;
+    }
     if (!this.cardForm.name || !this.cardForm.number || !this.cardForm.expiry || !this.cardForm.cvv) {
       return;
     }
