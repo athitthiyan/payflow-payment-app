@@ -42,13 +42,13 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       display: flex;
       align-items: center;
       justify-content: center;
+    }
 
-      &__bg {
-        position: fixed;
-        inset: 0;
-        background: var(--pf-gradient);
-        z-index: -1;
-      }
+    .failure-page__bg {
+      position: fixed;
+      inset: 0;
+      background: var(--pf-gradient);
+      z-index: -1;
     }
 
     .failure-bg-orb {
@@ -73,12 +73,6 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       box-shadow: 0 0 60px rgba(239,68,68,0.1), var(--pf-shadow);
       animation: fadeInUp 0.5s ease;
 
-      &__icon {
-        font-size: 4rem;
-        margin-bottom: 24px;
-        display: block;
-      }
-
       h1 {
         font-family: 'Space Grotesk', sans-serif;
         font-size: 2.2rem;
@@ -96,32 +90,38 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
         border: 1px solid rgba(239,68,68,0.2);
         border-radius: var(--radius-md);
       }
+    }
 
-      &__suggestions {
-        text-align: left;
-        background: var(--pf-surface-2);
-        border-radius: var(--radius-lg);
-        padding: 20px;
-        margin-bottom: 32px;
+    .failure-card__icon {
+      font-size: 4rem;
+      margin-bottom: 24px;
+      display: block;
+    }
 
-        h4 { font-size: 14px; color: white; margin-bottom: 12px; }
+    .failure-card__suggestions {
+      text-align: left;
+      background: var(--pf-surface-2);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 32px;
 
-        ul {
-          list-style: none;
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+      h4 { font-size: 14px; color: white; margin-bottom: 12px; }
 
-          li { font-size: 14px; color: var(--pf-text-muted); }
-        }
-      }
-
-      &__actions {
+      ul {
+        list-style: none;
         display: flex;
-        gap: 12px;
-        justify-content: center;
-        flex-wrap: wrap;
+        flex-direction: column;
+        gap: 8px;
+
+        li { font-size: 14px; color: var(--pf-text-muted); }
       }
+    }
+
+    .failure-card__actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
     }
   `],
 })

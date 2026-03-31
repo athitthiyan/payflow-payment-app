@@ -124,12 +124,12 @@ import { Transaction } from '../../core/models/transaction.model';
 
       p { font-size: 14px; color: var(--pf-text-muted); margin-top: 6px; }
 
-      &__filter select {
-        min-width: 160px;
-        padding: 10px 16px !important;
-      }
-
       @media (max-width: 600px) { flex-direction: column; align-items: flex-start; gap: 16px; }
+    }
+
+    .txn-header__filter select {
+      min-width: 160px;
+      padding: 10px 16px !important;
     }
 
     .txn-stats {
@@ -148,8 +148,6 @@ import { Transaction } from '../../core/models/transaction.model';
       border: 1px solid var(--pf-border);
       border-radius: var(--radius-lg);
 
-      &__icon { font-size: 1.8rem; }
-
       strong {
         display: block;
         font-size: 1.3rem;
@@ -159,6 +157,8 @@ import { Transaction } from '../../core/models/transaction.model';
 
       span { font-size: 13px; color: var(--pf-text-muted); }
     }
+
+    .stat-card__icon { font-size: 1.8rem; }
 
     .txn-table-wrap {
       background: var(--pf-surface);
