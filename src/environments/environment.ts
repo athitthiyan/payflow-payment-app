@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:8000',
-  bookingAppUrl: 'http://localhost:4200',
-  stripePublishableKey: 'pk_test_your_key_here',
+  apiUrl: 'https://hotelapi-backend.onrender.com',
+  bookingAppUrl: 'https://hotelapi-frontend.onrender.com',
+  stripePublishableKey: 'pk_test_51TH0UuBDYx3dIveAYRnmWFuHY6EB8yZigeKqjltdRnQpc3iidRxSDV6rdmZrH8bcRt9fg3HIBCp32GRpMTnjSGcy00KPKiGzPL',
 };
