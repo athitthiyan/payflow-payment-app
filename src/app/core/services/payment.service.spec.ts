@@ -1,0 +1,60 @@
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
+
+import { PaymentService } from './payment.service';
+import { environment } from '../../../environments/environment';
+
+describe('PaymentService', () => {
+  let service: PaymentService;
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+
+    service = TestBed.inject(PaymentService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+  });
+
+  it('creates a payment intent', () => {
+    service.createPaymentIntent(12, 'card').subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/payments/create-payment-intent`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ booking_id: 12, payment_method: 'card' });
+    req.flush({});
+  });
+
+  it('records payment failure', () => {
+    service.recordFailure(45, 'Card declined').subscribe();
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/payments/payment-failure?booking_id=45&reason=Card%20declined`
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+  });
+
+  it('fetches payment status', () => {
+    service.getPaymentStatus(88).subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/payments/status/88`);
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      booking_id: 88,
+      booking_ref: 'BK123',
+      booking_status: 'confirmed',
+      payment_status: 'paid',
+      latest_transaction: null,
+    });
+  });
+});

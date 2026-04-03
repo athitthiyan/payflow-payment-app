@@ -126,12 +126,14 @@ type PaymentStep = 'details' | 'processing';
               <button
                 class="btn btn--primary pay-btn"
                 (click)="processCardPayment()"
-                [disabled]="processing() || !stripeReady() || !bookingAmount()"
+                [disabled]="processing() || !stripeReady() || !cardElementReady() || !bookingAmount()"
               >
                 @if (processing()) {
                   <span class="spinner-inline"></span> Processing…
                 } @else if (!stripeReady()) {
                   Loading payment system…
+                } @else if (!cardElementReady()) {
+                  Preparing secure card form…
                 } @else if (!bookingAmount()) {
                   Loading booking…
                 } @else {
@@ -715,6 +717,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   processing = signal(false);
   processingStepIdx = signal(-1);
   stripeReady = signal(false);
+  cardElementReady = signal(false);
 
   booking = signal<any>(null);
   bookingId = signal(0);
@@ -748,6 +751,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.cardElementReady.set(false);
     this.cardElement?.destroy();
   }
 
@@ -815,6 +819,8 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private async initStripe() {
     try {
+      this.stripeReady.set(false);
+      this.cardElementReady.set(false);
       this.stripe = await loadStripe(environment.stripePublishableKey);
       if (!this.stripe) return;
 
@@ -869,6 +875,10 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       });
 
       this.cardElement.mount(this.cardMountRef.nativeElement);
+
+      this.cardElement.on('ready', () => {
+        this.cardElementReady.set(true);
+      });
 
       this.cardElement.on('change', event => {
         this.cardError.set(event.error?.message ?? '');
@@ -941,6 +951,10 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     if (!this.stripe || !this.cardElement) {
       this.cardError.set('Payment system is not ready. Please refresh the page.');
+      return;
+    }
+    if (!this.cardElementReady()) {
+      this.cardError.set('Secure card form is still initializing. Please wait a moment and try again.');
       return;
     }
 
