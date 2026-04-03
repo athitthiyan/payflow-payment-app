@@ -76,7 +76,7 @@ type PaymentStep = 'details' | 'processing';
                     (click)="processMockPayment(true)"
                   >
                     ✅ Simulate Successful Payment
-                    <span>→ ${{ bookingAmount() | number:'1.0-0' }} charged</span>
+                    <span>→ \${{ bookingAmount() | number:'1.0-0' }} charged</span>
                   </button>
                   <button
                     class="demo-btn demo-btn--failure"
@@ -134,7 +134,7 @@ type PaymentStep = 'details' | 'processing';
                 } @else if (!bookingAmount()) {
                   Loading booking…
                 } @else {
-                  Pay ${{ bookingAmount() | number:'1.0-0' }} Securely 🔒
+                  Pay \${{ bookingAmount() | number:'1.0-0' }} Securely 🔒
                 }
               </button>
             </div>
@@ -214,16 +214,16 @@ type PaymentStep = 'details' | 'processing';
             <div class="payment-summary__amount">
               <div class="amount-row">
                 <span>Subtotal</span>
-                <span>${{ (bookingAmount() / 1.17) | number:'1.0-0' }}</span>
+                <span>\${{ (bookingAmount() / 1.17) | number:'1.0-0' }}</span>
               </div>
               <div class="amount-row">
                 <span>Taxes & Fees</span>
-                <span>${{ (bookingAmount() - bookingAmount() / 1.17) | number:'1.0-0' }}</span>
+                <span>\${{ (bookingAmount() - bookingAmount() / 1.17) | number:'1.0-0' }}</span>
               </div>
               <div class="divider"></div>
               <div class="amount-row amount-row--total">
                 <span>Total Due</span>
-                <span class="amount-total">${{ bookingAmount() | number:'1.0-0' }}</span>
+                <span class="amount-total">\${{ bookingAmount() | number:'1.0-0' }}</span>
               </div>
             </div>
 
