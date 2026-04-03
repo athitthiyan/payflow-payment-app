@@ -7,7 +7,8 @@
     "start": "ng serve --port 4201",
     "build": "ng build",
     "build:prod": "ng build --configuration production",
-    "test": "jest --coverage"
+    "test": "jest --coverage",
+    "test:ci": "jest --runInBand --coverage --coverageReporters=text-summary --coverageReporters=text"
   },
   "private": true,
   "dependencies": {
