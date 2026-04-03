@@ -13,7 +13,7 @@
  *   7. Booking already paid → redirected immediately to success
  */
 
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -62,8 +62,8 @@ const MOCK_TRANSACTIONS_LIST = {
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
-async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending') {
-  await page.route('**/bookings/7', async route => {
+async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending'): Promise<void> {
+  await page.route('**/bookings/7', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -71,7 +71,7 @@ async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending') 
     });
   });
 
-  await page.route('**/payments/create-payment-intent', async route => {
+  await page.route('**/payments/create-payment-intent', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -79,7 +79,7 @@ async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending') 
     });
   });
 
-  await page.route('**/payments/payment-success', async route => {
+  await page.route('**/payments/payment-success', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -87,7 +87,7 @@ async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending') 
     });
   });
 
-  await page.route('**/payments/payment-failure**', async route => {
+  await page.route('**/payments/payment-failure**', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -95,7 +95,7 @@ async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending') 
     });
   });
 
-  await page.route('**/payments/status/7', async route => {
+  await page.route('**/payments/status/7', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -117,13 +117,12 @@ test.describe('Payment Form', () => {
     await mockBookingAndPaymentApis(page);
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    // Wait for booking amount to appear (card renders after HTTP call)
     await expect(page.getByText(/1,050|1050/)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('The Grand Azure')).toBeVisible();
   });
 
   test('shows booking load error for bad booking id', async ({ page }) => {
-    await page.route('**/bookings/999', async route => {
+    await page.route('**/bookings/999', async (route: Route) => {
       await route.fulfill({
         status: 404,
         contentType: 'application/json',
@@ -139,7 +138,6 @@ test.describe('Payment Form', () => {
     await mockBookingAndPaymentApis(page, 'paid');
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    // Should auto-redirect to /success
     await expect(page).toHaveURL(/success/, { timeout: 10_000 });
   });
 });
@@ -149,14 +147,11 @@ test.describe('Mock Payment Flow', () => {
     await mockBookingAndPaymentApis(page);
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    // Wait for the booking amount to load
     await expect(page.getByText(/1,050|1050/)).toBeVisible({ timeout: 10_000 });
 
-    // Click the "Pay Now" / "Complete Mock Payment" button
     const payButton = page.getByRole('button', { name: /pay|complete|confirm/i }).first();
     await payButton.click();
 
-    // Should navigate to success
     await expect(page).toHaveURL(/success/, { timeout: 15_000 });
   });
 
@@ -164,17 +159,13 @@ test.describe('Mock Payment Flow', () => {
     await mockBookingAndPaymentApis(page);
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    // Wait for the UI to load
     await expect(page.getByText(/1,050|1050/)).toBeVisible({ timeout: 10_000 });
 
-    // Find and click the failure / "Test Failure" button
     const failButton = page.getByRole('button', { name: /fail|decline|test failure/i });
     if (await failButton.isVisible()) {
       await failButton.click();
       await expect(page).toHaveURL(/failure/, { timeout: 15_000 });
-    }
-    // If the button isn't visible (different UI state), just assert page is still functional
-    else {
+    } else {
       await expect(page.locator('body')).toBeVisible();
     }
   });
@@ -192,12 +183,10 @@ test.describe('Success Page', () => {
   test('success page contains link back to booking confirmation', async ({ page }) => {
     await page.goto('/success?ref=TXN-001&amount=500&booking_ref=BK-LINK&booking_id=5');
 
-    // Should contain a link that goes back to the booking app
     const bookingLink = page.locator('a[href*="booking-confirmation"]').first();
     if (await bookingLink.isVisible()) {
       await expect(bookingLink).toHaveAttribute('href', /booking-confirmation/);
     } else {
-      // Alternative: a button that navigates
       await expect(page.locator('body')).toBeVisible();
     }
   });
@@ -208,16 +197,17 @@ test.describe('Failure Page', () => {
     await page.goto('/failure?reason=Card%20was%20declined&booking_id=7');
 
     await expect(page.getByText(/Card was declined/)).toBeVisible({ timeout: 10_000 });
-    // Retry button should be present
-    await expect(page.getByRole('button', { name: /retry|try again/i }).or(
-      page.getByRole('link', { name: /retry|try again/i })
-    )).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /retry|try again/i }).or(
+        page.getByRole('link', { name: /retry|try again/i })
+      )
+    ).toBeVisible();
   });
 });
 
 test.describe('Transaction History', () => {
   test('transaction history page loads and shows transactions', async ({ page }) => {
-    await page.route('**/payments/transactions**', async route => {
+    await page.route('**/payments/transactions**', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -231,8 +221,8 @@ test.describe('Transaction History', () => {
     await expect(page.getByText('TXN-002')).toBeVisible();
   });
 
-  test('transaction history handles API error with empty state', async ({ page }) => {
-    await page.route('**/payments/transactions**', async route => {
+  test('transaction history handles API error', async ({ page }) => {
+    await page.route('**/payments/transactions**', async (route: Route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -243,7 +233,8 @@ test.describe('Transaction History', () => {
     await page.goto('/transactions');
 
     await expect(page.locator('body')).toBeVisible({ timeout: 10_000 });
-    // Component shows empty state or error message
-    await expect(page.getByText(/no transactions|error|0/i).or(page.locator('.data-table'))).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByText(/no transactions|error|0/i).or(page.locator('.data-table'))
+    ).toBeVisible({ timeout: 10_000 });
   });
 });
