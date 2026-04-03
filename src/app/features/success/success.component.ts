@@ -246,6 +246,8 @@ export class SuccessComponent implements OnInit {
   transactionRef = '';
   amount = 0;
   bookingAppUrl = environment.bookingAppUrl;
+  bookingRef = '';
+  bookingId = '';
 
   confettiItems = Array.from({ length: 12 }, (_, i) => ({
     emoji: ['🎉', '✨', '🎊', '⭐', '💫', '🌟'][i % 6],
@@ -255,5 +257,12 @@ export class SuccessComponent implements OnInit {
   ngOnInit() {
     this.transactionRef = this.route.snapshot.queryParamMap.get('ref') || 'TXN-DEMO12345';
     this.amount = Number(this.route.snapshot.queryParamMap.get('amount') || 987.5);
+    this.bookingRef = this.route.snapshot.queryParamMap.get('booking_ref') || '';
+    this.bookingId = this.route.snapshot.queryParamMap.get('booking_id') || '';
+
+    const bookingUrl = new URL('/booking-confirmation', this.bookingAppUrl);
+    if (this.bookingRef) bookingUrl.searchParams.set('ref', this.bookingRef);
+    if (this.bookingId) bookingUrl.searchParams.set('booking_id', this.bookingId);
+    this.bookingAppUrl = bookingUrl.toString();
   }
 }

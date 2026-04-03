@@ -865,13 +865,23 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         }).subscribe({
           next: () => {
             this.router.navigate(['/success'], {
-              queryParams: { ref: txnRef, amount: this.bookingAmount() },
+              queryParams: {
+                ref: txnRef,
+                amount: this.bookingAmount(),
+                booking_id: this.bookingId(),
+                booking_ref: this.bookingRef() || this.booking()?.booking_ref,
+              },
             });
           },
           error: () => {
             // Still navigate to success — payment was simulated
             this.router.navigate(['/success'], {
-              queryParams: { ref: txnRef, amount: this.bookingAmount() },
+              queryParams: {
+                ref: txnRef,
+                amount: this.bookingAmount(),
+                booking_id: this.bookingId(),
+                booking_ref: this.bookingRef() || this.booking()?.booking_ref,
+              },
             });
           },
         });
@@ -950,13 +960,23 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
             .subscribe({
               next: () => {
                 this.router.navigate(['/success'], {
-                  queryParams: { ref: txnRef, amount: this.bookingAmount() },
+                  queryParams: {
+                    ref: txnRef,
+                    amount: this.bookingAmount(),
+                    booking_id: this.bookingId(),
+                    booking_ref: this.bookingRef() || this.booking()?.booking_ref,
+                  },
                 });
               },
               error: () => {
                 // Stripe already processed the charge — navigate to success regardless
                 this.router.navigate(['/success'], {
-                  queryParams: { ref: txnRef, amount: this.bookingAmount() },
+                  queryParams: {
+                    ref: txnRef,
+                    amount: this.bookingAmount(),
+                    booking_id: this.bookingId(),
+                    booking_ref: this.bookingRef() || this.booking()?.booking_ref,
+                  },
                 });
               },
             });
