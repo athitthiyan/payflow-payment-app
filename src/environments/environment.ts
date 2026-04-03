@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
-  apiUrl: 'https://hotelapi-backend.onrender.com',
+  apiUrl: 'https://hotel-api-production-447d.up.railway.app/',
   bookingAppUrl: 'https://hotelapi-frontend.onrender.com',
   stripePublishableKey: 'pk_test_51TH0UuBDYx3dIveAYRnmWFuHY6EB8yZigeKqjltdRnQpc3iidRxSDV6rdmZrH8bcRt9fg3HIBCp32GRpMTnjSGcy00KPKiGzPL',
 };
