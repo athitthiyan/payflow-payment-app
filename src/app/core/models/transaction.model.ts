@@ -29,3 +29,11 @@ export interface TransactionListResponse {
   transactions: Transaction[];
   total: number;
 }
+
+export interface PaymentStateResponse {
+  booking_id: number;
+  booking_ref: string;
+  booking_status: string;
+  payment_status: string;
+  latest_transaction: Transaction | null;
+}

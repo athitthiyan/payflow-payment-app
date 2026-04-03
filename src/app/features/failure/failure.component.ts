@@ -1,7 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { PaymentService } from '../../core/services/payment.service';
 
 @Component({
   selector: 'app-failure',
@@ -128,7 +127,6 @@ import { PaymentService } from '../../core/services/payment.service';
 })
 export class FailureComponent implements OnInit {
   private route = inject(ActivatedRoute);
-  private paymentService = inject(PaymentService);
 
   reason = 'Your payment could not be processed.';
   bookingId = '';
@@ -137,10 +135,5 @@ export class FailureComponent implements OnInit {
     const r = this.route.snapshot.queryParamMap.get('reason');
     if (r) this.reason = r;
     this.bookingId = this.route.snapshot.queryParamMap.get('booking_id') || '';
-
-    // Record the failure in the backend so InsightBoard picks it up
-    if (this.bookingId) {
-      this.paymentService.recordFailure(+this.bookingId, this.reason).subscribe();
-    }
   }
 }

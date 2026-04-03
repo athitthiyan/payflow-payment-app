@@ -13,6 +13,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { loadStripe, Stripe, StripeCardElement, StripeElements } from '@stripe/stripe-js';
+import { firstValueFrom } from 'rxjs';
 import { PaymentService } from '../../core/services/payment.service';
 import { environment } from '../../../environments/environment';
 
@@ -757,8 +758,12 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.http.get<any>(`${environment.apiUrl}/bookings/${id}`).subscribe({
       next: b => {
         this.booking.set(b);
+        this.bookingRef.set(b.booking_ref);
         this.bookingAmount.set(b.total_amount);
         this.bookingLoadError.set('');
+        if (b.payment_status === 'paid') {
+          this.navigateToSuccess(`TXN-${b.booking_ref}`, b.total_amount, b.booking_ref);
+        }
       },
       error: () => {
         this.bookingLoadError.set(
@@ -771,6 +776,39 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   retryLoadBooking() {
     if (this.bookingId()) this.loadBooking(this.bookingId());
+  }
+
+  private navigateToSuccess(transactionRef: string, amount: number, bookingRef?: string) {
+    this.router.navigate(['/success'], {
+      queryParams: {
+        ref: transactionRef,
+        amount,
+        booking_id: this.bookingId(),
+        booking_ref: bookingRef || this.bookingRef() || this.booking()?.booking_ref,
+      },
+    });
+  }
+
+  private async verifyConfirmedPayment(): Promise<boolean> {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        const status = await firstValueFrom(this.paymentService.getPaymentStatus(this.bookingId()));
+        if (status.payment_status === 'paid') {
+          this.navigateToSuccess(
+            status.latest_transaction?.transaction_ref || `TXN-${Date.now()}`,
+            status.latest_transaction?.amount || this.bookingAmount(),
+            status.booking_ref
+          );
+          return true;
+        }
+      } catch {
+        // Keep polling briefly to allow webhook or backend confirmation to finish.
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    return false;
   }
 
   // ─── Stripe Setup ────────────────────────────────────────────────────────────
@@ -863,26 +901,19 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
           transaction_ref: txnRef,
           payment_method: 'mock',
         }).subscribe({
-          next: () => {
-            this.router.navigate(['/success'], {
-              queryParams: {
-                ref: txnRef,
-                amount: this.bookingAmount(),
-                booking_id: this.bookingId(),
-                booking_ref: this.bookingRef() || this.booking()?.booking_ref,
-              },
-            });
+          next: (transaction) => {
+            this.navigateToSuccess(
+              transaction.transaction_ref,
+              transaction.amount,
+              transaction.booking?.booking_ref
+            );
           },
-          error: () => {
-            // Still navigate to success — payment was simulated
-            this.router.navigate(['/success'], {
-              queryParams: {
-                ref: txnRef,
-                amount: this.bookingAmount(),
-                booking_id: this.bookingId(),
-                booking_ref: this.bookingRef() || this.booking()?.booking_ref,
-              },
-            });
+          error: async () => {
+            if (!(await this.verifyConfirmedPayment())) {
+              this.step.set('details');
+              this.processing.set(false);
+              this.cardError.set('Payment confirmation is still processing. Please try again in a moment.');
+            }
           },
         });
       } else {
@@ -958,34 +989,33 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
               payment_method: 'card',
             })
             .subscribe({
-              next: () => {
-                this.router.navigate(['/success'], {
-                  queryParams: {
-                    ref: txnRef,
-                    amount: this.bookingAmount(),
-                    booking_id: this.bookingId(),
-                    booking_ref: this.bookingRef() || this.booking()?.booking_ref,
-                  },
-                });
+              next: (transaction) => {
+                this.navigateToSuccess(
+                  transaction.transaction_ref,
+                  transaction.amount,
+                  transaction.booking?.booking_ref
+                );
               },
-              error: () => {
-                // Stripe already processed the charge — navigate to success regardless
-                this.router.navigate(['/success'], {
-                  queryParams: {
-                    ref: txnRef,
-                    amount: this.bookingAmount(),
-                    booking_id: this.bookingId(),
-                    booking_ref: this.bookingRef() || this.booking()?.booking_ref,
-                  },
-                });
+              error: async () => {
+                if (!(await this.verifyConfirmedPayment())) {
+                  this.step.set('details');
+                  this.processing.set(false);
+                  this.cardError.set(
+                    'Stripe approved the charge, but the confirmation is still syncing. Please wait a few seconds and retry.'
+                  );
+                }
               },
             });
         }
       },
-      error: () => {
+      error: async (err) => {
+        const message = err?.error?.detail;
+        if (message === 'Booking already paid' && (await this.verifyConfirmedPayment())) {
+          return;
+        }
         this.step.set('details');
         this.processing.set(false);
-        this.cardError.set('Failed to create payment session. Please try again.');
+        this.cardError.set(message || 'Failed to create payment session. Please try again.');
       },
     });
   }

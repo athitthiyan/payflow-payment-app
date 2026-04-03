@@ -2,7 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { Transaction, TransactionListResponse } from '../models/transaction.model';
+import {
+  PaymentStateResponse,
+  Transaction,
+  TransactionListResponse,
+} from '../models/transaction.model';
 
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
@@ -31,6 +35,10 @@ export class PaymentService {
     return this.http.post(`${this.base}/payment-failure`, null, {
       params: new HttpParams().set('booking_id', bookingId).set('reason', reason),
     });
+  }
+
+  getPaymentStatus(bookingId: number): Observable<PaymentStateResponse> {
+    return this.http.get<PaymentStateResponse>(`${this.base}/status/${bookingId}`);
   }
 
   getTransactions(status?: string, page = 1, perPage = 10): Observable<TransactionListResponse> {
