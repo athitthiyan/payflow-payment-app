@@ -959,15 +959,14 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.processing.set(true);
-    this.step.set('processing');
-
-    // Run animation in parallel
-    const animDone = this.runProcessingAnimation();
+    // NOTE: do NOT set step='processing' yet — that would destroy #cardMount via @if,
+    // unmounting the Stripe Element before confirmCardPayment can use it.
 
     // Step 1: Create PaymentIntent on backend
     this.paymentService.createPaymentIntent(this.bookingId(), 'card').subscribe({
       next: async intent => {
-        // Step 2: Confirm payment with Stripe.js (tokenises card securely)
+        // Step 2: Confirm payment with Stripe.js BEFORE switching the view,
+        // so the card Element remains mounted in the DOM during tokenisation.
         const { error, paymentIntent } = await this.stripe!.confirmCardPayment(
           intent.client_secret,
           {
@@ -978,6 +977,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
           }
         );
 
+        // Now it is safe to switch to the processing view and run the animation.
+        this.step.set('processing');
+        const animDone = this.runProcessingAnimation();
         await animDone;
 
         if (error) {
