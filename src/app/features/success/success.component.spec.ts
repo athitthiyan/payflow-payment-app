@@ -43,4 +43,35 @@ describe('SuccessComponent', () => {
     expect(component.bookingAppUrl).toContain('ref=BK999');
     expect(component.bookingAppUrl).toContain('booking_id=7');
   });
+
+  it('falls back to demo values when query params are missing', async () => {
+    TestBed.resetTestingModule();
+
+    await TestBed.configureTestingModule({
+      imports: [SuccessComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParamMap: {
+                get: () => null,
+              },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(SuccessComponent);
+    const component = fixture.componentInstance;
+
+    component.ngOnInit();
+
+    expect(component.transactionRef).toBe('TXN-DEMO12345');
+    expect(component.amount).toBe(987.5);
+    expect(component.bookingAppUrl).toContain('/booking-confirmation');
+    expect(component.bookingAppUrl).not.toContain('booking_id=');
+  });
 });

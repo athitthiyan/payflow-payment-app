@@ -1231,7 +1231,15 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       const status = err?.status;
       const detail: string = err?.error?.detail || '';
 
-      if (status === 409 && (detail.toLowerCase().includes('unavailable') || detail.toLowerCase().includes('reserved') || detail.toLowerCase().includes('expired'))) {
+      if (
+        status === 409 &&
+        (
+          detail.toLowerCase().includes('unavailable') ||
+          detail.toLowerCase().includes('available') ||
+          detail.toLowerCase().includes('reserved') ||
+          detail.toLowerCase().includes('expired')
+        )
+      ) {
         this.uiState.set('conflict');
         this.cardError.set(detail || 'These dates are no longer available. Please go back and select new dates.');
       } else if (status === 409 && detail.toLowerCase().includes('already paid')) {

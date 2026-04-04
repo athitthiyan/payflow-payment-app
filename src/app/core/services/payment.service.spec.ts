@@ -34,6 +34,27 @@ describe('PaymentService', () => {
     req.flush({});
   });
 
+  it('creates a payment intent with an idempotency key', () => {
+    service.createPaymentIntent(12, 'card', 'idem-123').subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/payments/create-payment-intent`);
+    expect(req.request.body).toEqual({
+      booking_id: 12,
+      payment_method: 'card',
+      idempotency_key: 'idem-123',
+    });
+    req.flush({});
+  });
+
+  it('extends the booking hold', () => {
+    service.extendHold(33, 'guest@example.com').subscribe();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/bookings/33/extend-hold`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ email: 'guest@example.com' });
+    req.flush({});
+  });
+
   it('records payment failure', () => {
     service.recordFailure(45, 'Card declined').subscribe();
 
@@ -56,5 +77,25 @@ describe('PaymentService', () => {
       payment_status: 'paid',
       latest_transaction: null,
     });
+  });
+
+  it('fetches transactions without a status filter by default', () => {
+    service.getTransactions().subscribe();
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/payments/transactions?page=1&per_page=10`,
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ transactions: [], total: 0, page: 1, per_page: 10 });
+  });
+
+  it('fetches transactions with an explicit status filter', () => {
+    service.getTransactions('paid', 2, 25).subscribe();
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/payments/transactions?page=2&per_page=25&status=paid`,
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({ transactions: [], total: 0, page: 2, per_page: 25 });
   });
 });

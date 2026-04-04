@@ -178,6 +178,51 @@ describe('PaymentFormComponent', () => {
     expect(component.cardElementReady()).toBe(true);
   });
 
+  it('calls initStripe from ngAfterViewInit', () => {
+    const { component } = createComponent();
+    const initSpy = jest.spyOn(component as any, 'initStripe').mockResolvedValue(undefined);
+
+    component.ngAfterViewInit();
+
+    expect(initSpy).toHaveBeenCalled();
+  });
+
+  it('captures stripe card change errors and handles init failure', async () => {
+    mockCreate.mockReturnValue({
+      mount: mockMount,
+      on: mockOn,
+      destroy: mockDestroy,
+    });
+    mockLoadStripe.mockResolvedValue(null);
+
+    const { component } = createComponent();
+    component.cardMountRef = { nativeElement: document.createElement('div') } as any;
+
+    await (component as any).initStripe();
+    expect(component.stripeReady()).toBe(false);
+
+    mockLoadStripe.mockResolvedValue({
+      elements: mockElements,
+      confirmCardPayment: mockConfirmCardPayment,
+    });
+    await (component as any).initStripe();
+    const changeHandler = mockOn.mock.calls.find(call => call[0] === 'change')?.[1];
+    changeHandler({ error: { message: 'Bad card' } });
+
+    expect(component.cardError()).toBe('Bad card');
+  });
+
+  it('keeps stripeReady false when Stripe initialization throws', async () => {
+    mockLoadStripe.mockRejectedValue(new Error('stripe init failed'));
+
+    const { component } = createComponent();
+    component.cardMountRef = { nativeElement: document.createElement('div') } as any;
+
+    await (component as any).initStripe();
+
+    expect(component.stripeReady()).toBe(false);
+  });
+
   it('validates missing payment prerequisites before confirming card payment', async () => {
     const { component } = createComponent();
 
@@ -246,6 +291,28 @@ describe('PaymentFormComponent', () => {
     expect(verifySpy).toHaveBeenCalled();
     expect(component.processing()).toBe(false); // finally block ran
     expect(component.uiState()).toBe('success');
+  });
+
+  it('falls back to failed_retry when already-paid verification does not confirm payment', async () => {
+    const { component } = createComponent();
+
+    component.bookingId.set(7);
+    component.bookingAmount.set(100);
+    component.cardholderName = 'Athit';
+    component.cardElementReady.set(true);
+    (component as any).stripe = {};
+    (component as any).cardElement = { clear: mockClear, destroy: mockDestroy };
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({ status: 409, error: { detail: 'Booking already paid' } })),
+    );
+    jest.spyOn(component as any, 'verifyConfirmedPayment').mockResolvedValue(false);
+
+    await component.processCardPayment();
+
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.step()).toBe('details');
+    expect(component.cardError()).toContain('still syncing');
   });
 
   // ─── New state-machine tests ─────────────────────────────────────────────────
@@ -352,6 +419,37 @@ describe('PaymentFormComponent', () => {
     expect(component.holdSecondsLeft()).toBe(0);
   });
 
+  it('keeps success state when countdown expires after payment succeeds', async () => {
+    const { component } = createComponent();
+    component.uiState.set('success');
+
+    const futureExpiry = new Date(Date.now() + 1000).toISOString();
+    (component as any).startHoldCountdown(futureExpiry);
+    jest.advanceTimersByTime(2000);
+
+    expect(component.uiState()).toBe('success');
+    expect(component.holdExpired()).toBe(true);
+  });
+
+  it('retries loading the booking when booking id exists', () => {
+    const { component } = createComponent();
+    const loadSpy = jest.spyOn(component, 'loadBooking').mockImplementation();
+    component.bookingId.set(7);
+
+    component.retryLoadBooking();
+
+    expect(loadSpy).toHaveBeenCalledWith(7);
+  });
+
+  it('does not retry loading when booking id is missing', () => {
+    const { component } = createComponent();
+    const loadSpy = jest.spyOn(component, 'loadBooking').mockImplementation();
+
+    component.retryLoadBooking();
+
+    expect(loadSpy).not.toHaveBeenCalled();
+  });
+
   it('prevents double-submit while processing is true', async () => {
     const { component } = createComponent();
     setupReadyComponent(component);
@@ -385,6 +483,25 @@ describe('PaymentFormComponent', () => {
     expect(component.uiState()).toBe('failed_retry');
     expect(component.cardError()).toContain('previous payment failed');
     expect(component.holdSecondsLeft()).toBeGreaterThan(0);
+  });
+
+  it('marks the booking as expired when the recovered hold is already expired', () => {
+    const { component } = createComponent();
+    component.ngOnInit();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/bookings/7`);
+    req.flush({
+      booking_ref: 'BK123',
+      total_amount: 300,
+      payment_status: 'pending',
+      hold_expires_at: new Date(Date.now() - 1000).toISOString(),
+      room: {},
+      check_in: '2026-04-10',
+      check_out: '2026-04-12',
+      nights: 2,
+    });
+
+    expect(component.uiState()).toBe('expired');
   });
 
   it('shows hold countdown from booking hold_expires_at', () => {
@@ -450,6 +567,23 @@ describe('PaymentFormComponent', () => {
     );
   });
 
+  it('mock payment success falls back to polling when confirm endpoint fails', async () => {
+    const { component } = createComponent();
+    const verifySpy = jest.spyOn(component as any, 'verifyConfirmedPayment').mockResolvedValue(false);
+    setupReadyComponent(component);
+
+    component.bookingId.set(7);
+    component.bookingAmount.set(200);
+    paymentService.confirmPayment.mockReturnValue(throwError(() => new Error('syncing')));
+
+    component.processMockPayment(true);
+    await jest.runAllTimersAsync();
+
+    expect(verifySpy).toHaveBeenCalled();
+    expect(component.step()).toBe('details');
+    expect(component.cardError()).toContain('still processing');
+  });
+
   it('card payment success records transaction and navigates', async () => {
     const { component } = createComponent();
     const router = TestBed.inject(Router);
@@ -500,5 +634,61 @@ describe('PaymentFormComponent', () => {
     expect(component.uiState()).toBe('failed_retry');
     expect(component.cardError()).toContain('timed out');
     expect(component.processing()).toBe(false);
+  });
+
+  it('destroys the card element and stops countdown on destroy', () => {
+    const { component } = createComponent();
+    component.cardElementReady.set(true);
+    (component as any).cardElement = { destroy: mockDestroy };
+
+    const futureExpiry = new Date(Date.now() + 5000).toISOString();
+    (component as any).startHoldCountdown(futureExpiry);
+    component.ngOnDestroy();
+
+    expect(component.cardElementReady()).toBe(false);
+    expect(mockDestroy).toHaveBeenCalled();
+    expect((component as any).holdCountdownInterval).toBeNull();
+  });
+
+  it('polls payment status until a confirmed payment appears', async () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    component.bookingId.set(7);
+    component.bookingAmount.set(123);
+    paymentService.getPaymentStatus
+      .mockReturnValueOnce(of({ payment_status: 'pending' }))
+      .mockReturnValueOnce(of({
+        payment_status: 'paid',
+        booking_ref: 'BK123',
+        latest_transaction: { transaction_ref: 'TXN-LATE', amount: 123 },
+      }));
+
+    const promise = (component as any).verifyConfirmedPayment();
+    await jest.advanceTimersByTimeAsync(1500);
+    await promise;
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/success'], {
+      queryParams: {
+        ref: 'TXN-LATE',
+        amount: 123,
+        booking_id: 7,
+        booking_ref: 'BK123',
+      },
+    });
+  });
+
+  it('returns false when payment confirmation polling never succeeds', async () => {
+    const { component } = createComponent();
+    component.bookingId.set(7);
+    paymentService.getPaymentStatus.mockReturnValue(throwError(() => new Error('nope')));
+
+    const promise = (component as any).verifyConfirmedPayment();
+    for (let i = 0; i < 6; i++) {
+      await jest.advanceTimersByTimeAsync(1500);
+    }
+
+    await expect(promise).resolves.toBe(false);
   });
 });
