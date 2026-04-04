@@ -1,4 +1,4 @@
-export type TransactionStatus = 'pending' | 'success' | 'failed' | 'refunded';
+export type TransactionStatus = 'pending' | 'processing' | 'success' | 'failed' | 'expired' | 'refunded';
 
 export interface Transaction {
   id: number;

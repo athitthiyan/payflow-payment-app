@@ -13,11 +13,16 @@ export class PaymentService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/payments`;
 
-  createPaymentIntent(bookingId: number, method: string = 'mock'): Observable<any> {
+  createPaymentIntent(bookingId: number, method: string = 'mock', idempotencyKey?: string): Observable<any> {
     return this.http.post(`${this.base}/create-payment-intent`, {
       booking_id: bookingId,
       payment_method: method,
+      ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
     });
+  }
+
+  extendHold(bookingId: number, email: string): Observable<any> {
+    return this.http.post(`${environment.apiUrl}/bookings/${bookingId}/extend-hold`, { email });
   }
 
   confirmPayment(payload: {

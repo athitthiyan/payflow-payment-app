@@ -14,10 +14,12 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { loadStripe, Stripe, StripeCardElement, StripeElements } from '@stripe/stripe-js';
 import { firstValueFrom } from 'rxjs';
+import { timeout } from 'rxjs/operators';
 import { PaymentService } from '../../core/services/payment.service';
 import { environment } from '../../../environments/environment';
 
 type PaymentStep = 'details' | 'processing';
+type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expired' | 'conflict';
 
 @Component({
   selector: 'app-payment-form',
@@ -36,7 +38,47 @@ type PaymentStep = 'details' | 'processing';
         <!-- Left: Payment Form -->
         <div class="payment-form-wrap">
 
-          @if (step() === 'details') {
+          <!-- Hold timer banner (shown whenever hold is active and not yet succeeded) -->
+          @if (holdSecondsLeft() > 0 && uiState() !== 'success') {
+            <div class="hold-timer" [class.hold-timer--warning]="holdSecondsLeft() < 120">
+              ⏳ Room reserved for {{ holdMinutes() }}:{{ holdSecondsPad() }}
+            </div>
+          }
+
+          <!-- Expired state — replaces the payment form entirely -->
+          @if (uiState() === 'expired') {
+            <div class="state-block state-block--expired">
+              <span class="state-block__icon">⏰</span>
+              <h3>Your reservation has expired</h3>
+              <p>The 10-minute hold on your room timed out. Please go back and search for available rooms.</p>
+              <a [href]="bookingAppUrl" class="btn btn--primary">Find Available Rooms →</a>
+            </div>
+          }
+
+          <!-- Conflict state — replaces the payment form entirely -->
+          @if (uiState() === 'conflict') {
+            <div class="state-block state-block--conflict">
+              <span class="state-block__icon">⚠️</span>
+              <h3>Dates No Longer Available</h3>
+              <p>{{ cardError() }}</p>
+              <a [href]="bookingAppUrl" class="btn btn--primary">Select New Dates →</a>
+            </div>
+          }
+
+          @if (step() === 'details' && uiState() !== 'expired' && uiState() !== 'conflict') {
+
+            <!-- Failed retry banner (shown above card form after a decline) -->
+            @if (uiState() === 'failed_retry' && cardError()) {
+              <div class="retry-banner">
+                <span>⚠️</span>
+                <div>
+                  <p>{{ cardError() }}</p>
+                  @if (retryCount() >= maxRetries) {
+                    <p class="retry-limit">Maximum retry attempts reached. Please contact support or try a different payment method.</p>
+                  }
+                </div>
+              </div>
+            }
 
             <!-- Header -->
             <div class="pf-header">
@@ -114,7 +156,7 @@ type PaymentStep = 'details' | 'processing';
                 <div #cardMount class="stripe-card-mount"></div>
               </div>
 
-              @if (cardError()) {
+              @if (cardError() && uiState() !== 'failed_retry') {
                 <div class="card-error">⚠️ {{ cardError() }}</div>
               }
 
@@ -697,6 +739,95 @@ type PaymentStep = 'details' | 'processing';
       from { opacity: 0; transform: translateY(16px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* ── Hold timer banner ─────────────────────────────── */
+    .hold-timer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: #22c55e;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      animation: fadeInUp 0.4s ease;
+    }
+
+    .hold-timer--warning {
+      background: rgba(245,158,11,0.08);
+      border-color: rgba(245,158,11,0.3);
+      color: #f59e0b;
+    }
+
+    /* ── Retry banner (card decline / timeout errors) ─── */
+    .retry-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px 18px;
+      border-radius: var(--radius-lg);
+      background: rgba(239,68,68,0.06);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #fca5a5;
+      font-size: 14px;
+      margin-bottom: 20px;
+      animation: fadeInUp 0.3s ease;
+    }
+
+    .retry-banner > span { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+    .retry-banner p { margin: 0 0 4px; line-height: 1.5; }
+    .retry-limit { color: #f87171; font-size: 13px; margin-top: 6px !important; }
+
+    /* ── State blocks (expired / conflict) ─────────────── */
+    .state-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 56px 32px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--pf-border);
+      background: var(--pf-surface);
+      animation: fadeInUp 0.5s ease;
+    }
+
+    .state-block__icon { font-size: 3.5rem; margin-bottom: 20px; }
+
+    .state-block h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 12px;
+    }
+
+    .state-block p { font-size: 15px; color: var(--pf-text-muted); line-height: 1.6; margin-bottom: 28px; }
+
+    .state-block--expired { border-color: rgba(245,158,11,0.2); }
+    .state-block--expired .state-block__icon { filter: drop-shadow(0 0 12px rgba(245,158,11,0.4)); }
+
+    .state-block--conflict { border-color: rgba(239,68,68,0.2); }
+    .state-block--conflict .state-block__icon { filter: drop-shadow(0 0 12px rgba(239,68,68,0.4)); }
+
+    .btn--primary {
+      display: inline-block;
+      padding: 14px 28px;
+      background: linear-gradient(135deg, var(--pf-primary), #0ea5e9);
+      color: #050a14;
+      font-weight: 700;
+      font-size: 15px;
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn--primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(34,211,238,0.3);
+    }
   `],
 })
 export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -713,11 +844,25 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Component state
   step = signal<PaymentStep>('details');
+  uiState = signal<PaymentUiState>('idle');
   paymentMethod = signal<'mock' | 'card'>('mock');
   processing = signal(false);
   processingStepIdx = signal(-1);
   stripeReady = signal(false);
   cardElementReady = signal(false);
+
+  // Retry state
+  retryCount = signal(0);
+  readonly maxRetries = 3;
+
+  // Hold countdown
+  holdSecondsLeft = signal(0);
+  holdExpired = signal(false);
+  holdExpiresAt = signal<string | null>(null);
+  private holdCountdownInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Idempotency key (refreshed after each failed attempt)
+  private idempotencyKey = signal(this.generateIdempotencyKey());
 
   booking = signal<any>(null);
   bookingId = signal(0);
@@ -727,6 +872,8 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   cardError = signal('');
 
   cardholderName = '';
+
+  readonly bookingAppUrl = environment.bookingAppUrl;
 
   processingSteps = [
     { label: 'Validating card details' },
@@ -753,6 +900,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy() {
     this.cardElementReady.set(false);
     this.cardElement?.destroy();
+    this.stopHoldCountdown();
   }
 
   // ─── Booking ────────────────────────────────────────────────────────────────
@@ -765,8 +913,26 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.bookingRef.set(b.booking_ref);
         this.bookingAmount.set(b.total_amount);
         this.bookingLoadError.set('');
+
         if (b.payment_status === 'paid') {
+          this.uiState.set('success');
           this.navigateToSuccess(`TXN-${b.booking_ref}`, b.total_amount, b.booking_ref);
+          return;
+        }
+
+        // Start hold countdown and restore retry state on page refresh
+        if (b.hold_expires_at) {
+          this.holdExpiresAt.set(b.hold_expires_at);
+          const holdExp = new Date(b.hold_expires_at).getTime();
+          if (holdExp > Date.now()) {
+            this.startHoldCountdown(b.hold_expires_at);
+            if (b.payment_status === 'failed') {
+              this.uiState.set('failed_retry');
+              this.cardError.set('Your previous payment failed. Please try a different card.');
+            }
+          } else {
+            this.uiState.set('expired');
+          }
         }
       },
       error: () => {
@@ -780,6 +946,40 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   retryLoadBooking() {
     if (this.bookingId()) this.loadBooking(this.bookingId());
+  }
+
+  // ─── Hold Countdown ──────────────────────────────────────────────────────────
+
+  private generateIdempotencyKey(): string {
+    return `pay_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  private startHoldCountdown(holdExpiresAt: string): void {
+    this.stopHoldCountdown();
+    const expiry = new Date(holdExpiresAt).getTime();
+    const tick = () => {
+      const secs = Math.max(0, Math.round((expiry - Date.now()) / 1000));
+      this.holdSecondsLeft.set(secs);
+      if (secs === 0) {
+        this.stopHoldCountdown();
+        this.holdExpired.set(true);
+        if (this.uiState() !== 'processing' && this.uiState() !== 'success') {
+          this.uiState.set('expired');
+        }
+      }
+    };
+    tick();
+    this.holdCountdownInterval = setInterval(tick, 1000);
+  }
+
+  holdMinutes = () => String(Math.floor(this.holdSecondsLeft() / 60)).padStart(2, '0');
+  holdSecondsPad = () => String(this.holdSecondsLeft() % 60).padStart(2, '0');
+
+  private stopHoldCountdown(): void {
+    if (this.holdCountdownInterval) {
+      clearInterval(this.holdCountdownInterval);
+      this.holdCountdownInterval = null;
+    }
   }
 
   private navigateToSuccess(transactionRef: string, amount: number, bookingRef?: string) {
@@ -939,10 +1139,12 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   // ─── Real Stripe Card Payment ────────────────────────────────────────────────
 
   async processCardPayment() {
-    this.cardError.set('');
+    // Double-click guard — also prevents re-entry while already processing
+    if (this.processing()) return;
 
+    // Pre-flight validation (no network calls yet — fail fast in UI)
     if (!this.bookingAmount()) {
-      this.cardError.set('Booking details are still loading. Please wait or refresh.');
+      this.cardError.set('Booking details loading…');
       return;
     }
     if (!this.cardholderName.trim()) {
@@ -950,90 +1152,108 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     if (!this.stripe || !this.cardElement) {
-      this.cardError.set('Payment system is not ready. Please refresh the page.');
+      this.cardError.set('Payment system not ready. Please refresh.');
       return;
     }
     if (!this.cardElementReady()) {
-      this.cardError.set('Secure card form is still initializing. Please wait a moment and try again.');
+      this.cardError.set('Card form still initializing. Please wait.');
+      return;
+    }
+    if (this.retryCount() >= this.maxRetries) {
+      this.cardError.set('Maximum retry attempts reached. Please contact support.');
       return;
     }
 
     this.processing.set(true);
-    // NOTE: do NOT set step='processing' yet — that would destroy #cardMount via @if,
-    // unmounting the Stripe Element before confirmCardPayment can use it.
+    this.uiState.set('processing');
+    this.cardError.set('');
 
-    // Step 1: Create PaymentIntent on backend
-    this.paymentService.createPaymentIntent(this.bookingId(), 'card').subscribe({
-      next: async intent => {
-        // Step 2: Confirm payment with Stripe.js BEFORE switching the view,
-        // so the card Element remains mounted in the DOM during tokenisation.
-        const { error, paymentIntent } = await this.stripe!.confirmCardPayment(
-          intent.client_secret,
-          {
-            payment_method: {
-              card: this.cardElement!,
-              billing_details: { name: this.cardholderName },
-            },
-          }
-        );
+    try {
+      // Step 1 — create payment intent (idempotency key prevents duplicate charges on double-network-retry)
+      // NOTE: do NOT set step='processing' yet — that would destroy #cardMount via @if,
+      // unmounting the Stripe Element before confirmCardPayment can use it.
+      const intent = await firstValueFrom(
+        this.paymentService.createPaymentIntent(this.bookingId(), 'card', this.idempotencyKey())
+          .pipe(timeout(15_000))
+      );
 
-        // Now it is safe to switch to the processing view and run the animation.
-        this.step.set('processing');
-        const animDone = this.runProcessingAnimation();
-        await animDone;
+      // Step 2 — confirm with Stripe.js BEFORE switching view (card element must stay mounted)
+      const { error, paymentIntent } = await this.stripe!.confirmCardPayment(
+        intent.client_secret,
+        { payment_method: { card: this.cardElement!, billing_details: { name: this.cardholderName } } }
+      );
 
-        if (error) {
-          // Record failure in backend
-          this.paymentService
-            .recordFailure(this.bookingId(), error.message || 'Card declined')
-            .subscribe();
+      // Now safe to switch to animation view
+      this.step.set('processing');
+      await this.runProcessingAnimation();
 
-          this.step.set('details');
-          this.processing.set(false);
-          this.cardError.set(error.message || 'Payment failed. Please try again.');
-          return;
+      if (error) {
+        // Record decline in backend — inventory stays locked if hold still valid (backend fix)
+        try {
+          await firstValueFrom(
+            this.paymentService.recordFailure(this.bookingId(), error.message || 'Card declined')
+              .pipe(timeout(10_000))
+          );
+        } catch {
+          // Non-fatal — failure record best-effort
         }
 
-        if (paymentIntent?.status === 'succeeded') {
-          // Step 3: Record confirmed transaction in backend
-          const txnRef = 'TXN-' + paymentIntent.id.slice(-12).toUpperCase();
-          this.paymentService
-            .confirmPayment({
-              booking_id: this.bookingId(),
-              transaction_ref: txnRef,
-              payment_intent_id: paymentIntent.id,
-              payment_method: 'card',
-            })
-            .subscribe({
-              next: (transaction) => {
-                this.navigateToSuccess(
-                  transaction.transaction_ref,
-                  transaction.amount,
-                  transaction.booking?.booking_ref
-                );
-              },
-              error: async () => {
-                if (!(await this.verifyConfirmedPayment())) {
-                  this.step.set('details');
-                  this.processing.set(false);
-                  this.cardError.set(
-                    'Stripe approved the charge, but the confirmation is still syncing. Please wait a few seconds and retry.'
-                  );
-                }
-              },
-            });
-        }
-      },
-      error: async (err) => {
-        const message = err?.error?.detail;
-        if (message === 'Booking already paid' && (await this.verifyConfirmedPayment())) {
-          return;
-        }
+        this.retryCount.update(n => n + 1);
+        this.idempotencyKey.set(this.generateIdempotencyKey()); // fresh key for next attempt
+        this.uiState.set('failed_retry');
         this.step.set('details');
-        this.processing.set(false);
-        this.cardError.set(message || 'Failed to create payment session. Please try again.');
-      },
-    });
+        const holdInfo = this.holdSecondsLeft() > 0
+          ? ` Your room is reserved for ${this.holdMinutes()}:${this.holdSecondsPad()}.`
+          : '';
+        this.cardError.set(
+          `${error.message || 'Payment failed.'}${holdInfo} Please try a different card.`
+        );
+        if (this.cardElement) this.cardElement.clear();
+        this.cardholderName = '';
+        return;
+      }
+
+      if (paymentIntent?.status === 'succeeded') {
+        const txnRef = 'TXN-' + paymentIntent.id.slice(-12).toUpperCase();
+        const transaction = await firstValueFrom(
+          this.paymentService.confirmPayment({
+            booking_id: this.bookingId(),
+            transaction_ref: txnRef,
+            payment_intent_id: paymentIntent.id,
+            payment_method: 'card',
+          }).pipe(timeout(15_000))
+        );
+        this.uiState.set('success');
+        this.navigateToSuccess(transaction.transaction_ref, transaction.amount, transaction.booking?.booking_ref);
+      }
+
+    } catch (err: any) {
+      const status = err?.status;
+      const detail: string = err?.error?.detail || '';
+
+      if (status === 409 && (detail.toLowerCase().includes('unavailable') || detail.toLowerCase().includes('reserved') || detail.toLowerCase().includes('expired'))) {
+        this.uiState.set('conflict');
+        this.cardError.set(detail || 'These dates are no longer available. Please go back and select new dates.');
+      } else if (status === 409 && detail.toLowerCase().includes('already paid')) {
+        if (!(await this.verifyConfirmedPayment())) {
+          this.uiState.set('failed_retry');
+          this.step.set('details');
+          this.cardError.set('Payment is still syncing. Please wait a moment and retry.');
+        } else {
+          this.uiState.set('success');
+        }
+      } else if (err?.name === 'TimeoutError') {
+        this.uiState.set('failed_retry');
+        this.step.set('details');
+        this.cardError.set('Payment timed out. Please try again.');
+      } else {
+        this.uiState.set('failed_retry');
+        this.step.set('details');
+        this.cardError.set(detail || 'Payment failed. Please try again.');
+      }
+    } finally {
+      this.processing.set(false); // ← ALWAYS resets — prevents UI freeze on any exception
+    }
   }
 
   // ─── Animation ───────────────────────────────────────────────────────────────
