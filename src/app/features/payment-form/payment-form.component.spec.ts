@@ -370,10 +370,24 @@ describe('PaymentFormComponent', () => {
     expect(secondKey).not.toBe(firstKey);
   });
 
-  it('clears card element and cardholder name on retry', async () => {
+  it('rebuilds the stripe card element and clears the cardholder name on retry', async () => {
     const { component } = createComponent();
-    setupReadyComponent(component);
+    const rebuiltCardElement = {
+      mount: mockMount,
+      on: mockOn,
+      destroy: mockDestroy,
+    };
+    mockCreate.mockReturnValue(rebuiltCardElement);
+    component.cardMountRef = { nativeElement: document.createElement('div') } as any;
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
     component.cardholderName = 'Athit';
+    component.cardElementReady.set(true);
+    (component as any).stripe = {
+      confirmCardPayment: mockConfirmCardPayment,
+      elements: mockElements,
+    };
+    (component as any).cardElement = { destroy: mockDestroy };
 
     paymentService.createPaymentIntent.mockReturnValue(of({ client_secret: 'cs_test' }));
     mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined' } });
@@ -383,8 +397,10 @@ describe('PaymentFormComponent', () => {
     await jest.runAllTimersAsync();
     await p;
 
-    expect(mockClear).toHaveBeenCalled();
+    expect(mockDestroy).toHaveBeenCalled();
+    expect(mockMount).toHaveBeenCalled();
     expect(component.cardholderName).toBe('');
+    expect(component.cardElementReady()).toBe(false);
   });
 
   it('transitions to conflict state on 409 unavailable response', async () => {

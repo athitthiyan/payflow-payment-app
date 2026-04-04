@@ -982,6 +982,81 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private mountCardElement(): void {
+    if (!this.stripe || !this.cardMountRef?.nativeElement) return;
+
+    this.cardElementReady.set(false);
+    this.cardElement?.destroy();
+
+    const elements = this.stripe.elements({
+      appearance: {
+        theme: 'night',
+        variables: {
+          colorPrimary: '#22d3ee',
+          colorBackground: '#111827',
+          colorText: '#f1f5f9',
+          colorTextSecondary: '#94a3b8',
+          colorDanger: '#ef4444',
+          fontFamily: 'Space Grotesk, system-ui, sans-serif',
+          borderRadius: '8px',
+          spacingUnit: '4px',
+        },
+        rules: {
+          '.Input': {
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: 'none',
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            padding: '12px',
+          },
+          '.Input:focus': {
+            border: '1px solid rgba(34,211,238,0.4)',
+            boxShadow: '0 0 0 3px rgba(34,211,238,0.08)',
+          },
+          '.Label': {
+            color: '#94a3b8',
+            fontSize: '13px',
+            marginBottom: '6px',
+          },
+        },
+      },
+    });
+
+    this.cardElement = elements.create('card', {
+      hidePostalCode: true,
+      style: {
+        base: {
+          color: '#f1f5f9',
+          fontFamily: 'Space Grotesk, system-ui, sans-serif',
+          fontSize: '16px',
+          '::placeholder': { color: '#475569' },
+          iconColor: '#22d3ee',
+        },
+        invalid: {
+          color: '#ef4444',
+          iconColor: '#ef4444',
+        },
+      },
+    });
+
+    this.cardElement.mount(this.cardMountRef.nativeElement);
+
+    this.cardElement.on('ready', () => {
+      this.cardElementReady.set(true);
+    });
+
+    this.cardElement.on('change', event => {
+      this.cardError.set(event.error?.message ?? '');
+    });
+
+    this.stripeReady.set(true);
+  }
+
+  private restoreCardEntry(): void {
+    this.step.set('details');
+    this.cardElementReady.set(false);
+    setTimeout(() => this.mountCardElement(), 0);
+  }
+
   private navigateToSuccess(transactionRef: string, amount: number, bookingRef?: string) {
     this.router.navigate(['/success'], {
       queryParams: {
@@ -1023,68 +1098,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cardElementReady.set(false);
       this.stripe = await loadStripe(environment.stripePublishableKey);
       if (!this.stripe) return;
-
-      const elements = this.stripe.elements({
-        appearance: {
-          theme: 'night',
-          variables: {
-            colorPrimary: '#22d3ee',
-            colorBackground: '#111827',
-            colorText: '#f1f5f9',
-            colorTextSecondary: '#94a3b8',
-            colorDanger: '#ef4444',
-            fontFamily: 'Space Grotesk, system-ui, sans-serif',
-            borderRadius: '8px',
-            spacingUnit: '4px',
-          },
-          rules: {
-            '.Input': {
-              border: '1px solid rgba(255,255,255,0.1)',
-              boxShadow: 'none',
-              backgroundColor: 'rgba(255,255,255,0.04)',
-              padding: '12px',
-            },
-            '.Input:focus': {
-              border: '1px solid rgba(34,211,238,0.4)',
-              boxShadow: '0 0 0 3px rgba(34,211,238,0.08)',
-            },
-            '.Label': {
-              color: '#94a3b8',
-              fontSize: '13px',
-              marginBottom: '6px',
-            },
-          },
-        },
-      });
-
-      this.cardElement = elements.create('card', {
-        hidePostalCode: true,
-        style: {
-          base: {
-            color: '#f1f5f9',
-            fontFamily: 'Space Grotesk, system-ui, sans-serif',
-            fontSize: '16px',
-            '::placeholder': { color: '#475569' },
-            iconColor: '#22d3ee',
-          },
-          invalid: {
-            color: '#ef4444',
-            iconColor: '#ef4444',
-          },
-        },
-      });
-
-      this.cardElement.mount(this.cardMountRef.nativeElement);
-
-      this.cardElement.on('ready', () => {
-        this.cardElementReady.set(true);
-      });
-
-      this.cardElement.on('change', event => {
-        this.cardError.set(event.error?.message ?? '');
-      });
-
-      this.stripeReady.set(true);
+      this.mountCardElement();
     } catch {
       this.stripeReady.set(false);
     }
@@ -1201,14 +1215,13 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.retryCount.update(n => n + 1);
         this.idempotencyKey.set(this.generateIdempotencyKey()); // fresh key for next attempt
         this.uiState.set('failed_retry');
-        this.step.set('details');
+        this.restoreCardEntry();
         const holdInfo = this.holdSecondsLeft() > 0
           ? ` Your room is reserved for ${this.holdMinutes()}:${this.holdSecondsPad()}.`
           : '';
         this.cardError.set(
           `${error.message || 'Payment failed.'}${holdInfo} Please try a different card.`
         );
-        if (this.cardElement) this.cardElement.clear();
         this.cardholderName = '';
         return;
       }
@@ -1245,18 +1258,18 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       } else if (status === 409 && detail.toLowerCase().includes('already paid')) {
         if (!(await this.verifyConfirmedPayment())) {
           this.uiState.set('failed_retry');
-          this.step.set('details');
+          this.restoreCardEntry();
           this.cardError.set('Payment is still syncing. Please wait a moment and retry.');
         } else {
           this.uiState.set('success');
         }
       } else if (err?.name === 'TimeoutError') {
         this.uiState.set('failed_retry');
-        this.step.set('details');
+        this.restoreCardEntry();
         this.cardError.set('Payment timed out. Please try again.');
       } else {
         this.uiState.set('failed_retry');
-        this.step.set('details');
+        this.restoreCardEntry();
         this.cardError.set(detail || 'Payment failed. Please try again.');
       }
     } finally {
