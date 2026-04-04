@@ -1,21 +1,4 @@
-/**
- * End-to-end tests for PayFlow Payment App
- *
- * All API calls are intercepted with route mocks so no live backend is needed.
- *
- * Flows covered:
- *   1. Payment form loads with booking details
- *   2. Mock payment success flow → navigates to /success
- *   3. Mock payment failure flow → navigates to /failure
- *   4. Success page shows transaction details
- *   5. Failure page shows reason with retry button
- *   6. Transaction history page loads and filters by status
- *   7. Booking already paid → redirected immediately to success
- */
-
 import { test, expect, type Page, type Route } from '@playwright/test';
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
 
 const MOCK_BOOKING = {
   id: 7,
@@ -36,6 +19,7 @@ const MOCK_PAYMENT_INTENT = {
   client_secret: 'pi_test_secret_abc123',
   payment_intent_id: 'pi_test_abc123',
   booking_ref: 'BK-PAYFLOW-001',
+  transaction_ref: 'TXN-PAYFLOW-001',
   amount: 1050,
 };
 
@@ -53,14 +37,34 @@ const MOCK_TRANSACTION = {
 
 const MOCK_TRANSACTIONS_LIST = {
   transactions: [
-    { id: 1, transaction_ref: 'TXN-001', amount: 1050, status: 'success', payment_method: 'mock', created_at: new Date().toISOString() },
-    { id: 2, transaction_ref: 'TXN-002', amount: 500,  status: 'failed',  payment_method: 'card', created_at: new Date().toISOString() },
-    { id: 3, transaction_ref: 'TXN-003', amount: 200,  status: 'pending', payment_method: 'mock', created_at: new Date().toISOString() },
+    { id: 1, transaction_ref: 'TXN-001', amount: 1050, status: 'success', payment_method: 'mock', created_at: new Date().toISOString(), booking: { user_name: 'Athit', room: { hotel_name: 'The Grand Azure' } } },
+    { id: 2, transaction_ref: 'TXN-002', amount: 500, status: 'failed', payment_method: 'card', created_at: new Date().toISOString(), booking: { user_name: 'Jamie', room: { hotel_name: 'Sea View Resort' } } },
+    { id: 3, transaction_ref: 'TXN-003', amount: 200, status: 'pending', payment_method: 'mock', created_at: new Date().toISOString(), booking: { user_name: 'Chris', room: { hotel_name: 'City Loft' } } },
   ],
   total: 3,
 };
 
-// ─── Mock helpers ─────────────────────────────────────────────────────────────
+async function installStripeMock(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    class MockCardElement {
+      mount() {}
+      on() {}
+      unmount() {}
+      destroy() {}
+    }
+
+    class MockElements {
+      create() {
+        return new MockCardElement();
+      }
+    }
+
+    (window as unknown as { Stripe: unknown }).Stripe = () => ({
+      elements: () => new MockElements(),
+      confirmCardPayment: async () => ({ paymentIntent: { status: 'succeeded', id: 'pi_test_abc123' } }),
+    });
+  });
+}
 
 async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending'): Promise<void> {
   await page.route('**/bookings/7', async (route: Route) => {
@@ -103,25 +107,25 @@ async function mockBookingAndPaymentApis(page: Page, paymentStatus = 'pending'):
         booking_id: 7,
         booking_ref: 'BK-PAYFLOW-001',
         booking_status: 'confirmed',
-        payment_status: 'paid',
-        latest_transaction: MOCK_TRANSACTION,
+        payment_status: paymentStatus === 'paid' ? 'paid' : 'pending',
+        latest_transaction: paymentStatus === 'paid' ? MOCK_TRANSACTION : null,
       }),
     });
   });
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-test.describe('Payment Form', () => {
+test.describe('PayFlow End-to-End Journeys', () => {
   test('loads booking details from query params', async ({ page }) => {
+    await installStripeMock(page);
     await mockBookingAndPaymentApis(page);
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    await expect(page.getByText(/1,050|1050/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.amount-total')).toHaveText(/\$1,050/);
     await expect(page.getByText('The Grand Azure')).toBeVisible();
   });
 
   test('shows booking load error for bad booking id', async ({ page }) => {
+    await installStripeMock(page);
     await page.route('**/bookings/999', async (route: Route) => {
       await route.fulfill({
         status: 404,
@@ -131,94 +135,75 @@ test.describe('Payment Form', () => {
     });
 
     await page.goto('/?booking_id=999&ref=BK-NOTFOUND');
-    await expect(page.getByText(/Unable to load|not found|error/i)).toBeVisible({ timeout: 10_000 });
+
+    await expect(page.getByText(/Unable to load|not found|error/i)).toBeVisible();
   });
 
   test('redirects to success when booking is already paid', async ({ page }) => {
+    await installStripeMock(page);
     await mockBookingAndPaymentApis(page, 'paid');
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    await expect(page).toHaveURL(/success/, { timeout: 10_000 });
+    await expect(page).toHaveURL(/success/);
   });
-});
 
-test.describe('Mock Payment Flow', () => {
-  test('mock payment success navigates to /success page', async ({ page }) => {
+  test('mock payment success navigates to success page', async ({ page }) => {
+    await installStripeMock(page);
     await mockBookingAndPaymentApis(page);
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    await expect(page.getByText(/1,050|1050/)).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: /Simulate Successful Payment/i }).click();
 
-    const payButton = page.getByRole('button', { name: /pay|complete|confirm/i }).first();
-    await payButton.click();
-
-    await expect(page).toHaveURL(/success/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/success/);
+    await expect(page.getByRole('heading', { name: /Payment/i })).toBeVisible();
   });
 
-  test('mock payment failure navigates to /failure page', async ({ page }) => {
+  test('mock payment failure navigates to failure page', async ({ page }) => {
+    await installStripeMock(page);
     await mockBookingAndPaymentApis(page);
     await page.goto('/?booking_id=7&ref=BK-PAYFLOW-001');
 
-    await expect(page.getByText(/1,050|1050/)).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: /Simulate Failed Payment/i }).click();
 
-    const failButton = page.getByRole('button', { name: /fail|decline|test failure/i });
-    if (await failButton.isVisible()) {
-      await failButton.click();
-      await expect(page).toHaveURL(/failure/, { timeout: 15_000 });
-    } else {
-      await expect(page.locator('body')).toBeVisible();
-    }
+    await expect(page).toHaveURL(/failure/);
+    await expect(page.getByText(/Card declined \(demo\)/i)).toBeVisible();
   });
-});
 
-test.describe('Success Page', () => {
-  test('success page shows transaction reference and amount', async ({ page }) => {
+  test('success page shows transaction details and booking confirmation link', async ({ page }) => {
     await page.goto('/success?ref=TXN-PLAYWRIGHT-001&amount=1050&booking_ref=BK-PAYFLOW-001&booking_id=7');
 
-    await expect(page.getByText('TXN-PLAYWRIGHT-001')).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(/1,050|1050/)).toBeVisible();
-    await expect(page.getByText(/payment.*success|successful|confirmed/i)).toBeVisible();
+    await expect(page.getByText('TXN-PLAYWRIGHT-001')).toBeVisible();
+    await expect(page.getByRole('link', { name: /View My Booking/i })).toHaveAttribute('href', /booking-confirmation/);
   });
 
-  test('success page contains link back to booking confirmation', async ({ page }) => {
-    await page.goto('/success?ref=TXN-001&amount=500&booking_ref=BK-LINK&booking_id=5');
+  test('failure page shows retry controls', async ({ page }) => {
+    await page.goto('/failure?reason=Card%20was%20declined&booking_id=7&ref=BK-PAYFLOW-001');
 
-    const bookingLink = page.locator('a[href*="booking-confirmation"]').first();
-    if (await bookingLink.isVisible()) {
-      await expect(bookingLink).toHaveAttribute('href', /booking-confirmation/);
-    } else {
-      await expect(page.locator('body')).toBeVisible();
-    }
+    await expect(page.getByText(/Card was declined/)).toBeVisible();
+    await expect(page.getByRole('link', { name: /Retry Payment|Try Again/i }).or(page.getByRole('button', { name: /Retry Payment|Try Again/i }))).toBeVisible();
   });
-});
 
-test.describe('Failure Page', () => {
-  test('failure page shows reason and retry button', async ({ page }) => {
-    await page.goto('/failure?reason=Card%20was%20declined&booking_id=7');
-
-    await expect(page.getByText(/Card was declined/)).toBeVisible({ timeout: 10_000 });
-    await expect(
-      page.getByRole('button', { name: /retry|try again/i }).or(
-        page.getByRole('link', { name: /retry|try again/i })
-      )
-    ).toBeVisible();
-  });
-});
-
-test.describe('Transaction History', () => {
-  test('transaction history page loads and shows transactions', async ({ page }) => {
+  test('transaction history page loads and filters by status', async ({ page }) => {
     await page.route('**/payments/transactions**', async (route: Route) => {
+      const url = route.request().url();
+      const failedOnly = url.includes('status=failed');
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(MOCK_TRANSACTIONS_LIST),
+        body: JSON.stringify(
+          failedOnly
+            ? { transactions: [MOCK_TRANSACTIONS_LIST.transactions[1]], total: 1 }
+            : MOCK_TRANSACTIONS_LIST
+        ),
       });
     });
 
     await page.goto('/transactions');
 
-    await expect(page.getByText('TXN-001')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('TXN-001')).toBeVisible();
+    await page.locator('select').first().selectOption('failed');
     await expect(page.getByText('TXN-002')).toBeVisible();
+    await expect(page.getByText('TXN-001')).not.toBeVisible();
   });
 
   test('transaction history handles API error', async ({ page }) => {
@@ -232,9 +217,6 @@ test.describe('Transaction History', () => {
 
     await page.goto('/transactions');
 
-    await expect(page.locator('body')).toBeVisible({ timeout: 10_000 });
-    await expect(
-      page.getByText(/no transactions|error|0/i).or(page.locator('.data-table'))
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: /No transactions yet/i })).toBeVisible();
   });
 });
