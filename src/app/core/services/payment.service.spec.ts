@@ -65,6 +65,16 @@ describe('PaymentService', () => {
     req.flush({});
   });
 
+  it('records payment failure with payment intent and transaction reference', () => {
+    service.recordFailure(45, 'Card declined', 'pi_123', 'TXN-123').subscribe();
+
+    const req = httpMock.expectOne(
+      `${environment.apiUrl}/payments/payment-failure?booking_id=45&reason=Card%20declined&payment_intent_id=pi_123&transaction_ref=TXN-123`,
+    );
+    expect(req.request.method).toBe('POST');
+    req.flush({});
+  });
+
   it('fetches payment status', () => {
     service.getPaymentStatus(88).subscribe();
 

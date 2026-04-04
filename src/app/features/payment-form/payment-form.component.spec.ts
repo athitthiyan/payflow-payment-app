@@ -337,7 +337,11 @@ describe('PaymentFormComponent', () => {
     setupReadyComponent(component);
 
     paymentService.createPaymentIntent.mockReturnValue(
-      of({ client_secret: 'cs_test_123' })
+      of({
+        client_secret: 'cs_test_123',
+        payment_intent_id: 'pi_declined_001',
+        transaction_ref: 'TXN-DECLINED-001',
+      })
     );
     mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Your card was declined.' } });
     paymentService.recordFailure.mockReturnValue(of({}));
@@ -346,6 +350,12 @@ describe('PaymentFormComponent', () => {
     await jest.runAllTimersAsync();
     await p;
 
+    expect(paymentService.recordFailure).toHaveBeenCalledWith(
+      7,
+      'Your card was declined.',
+      'pi_declined_001',
+      'TXN-DECLINED-001',
+    );
     expect(component.uiState()).toBe('failed_retry');
     expect(component.step()).toBe('details');
     expect(component.cardError()).toContain('Your card was declined');
@@ -373,7 +383,13 @@ describe('PaymentFormComponent', () => {
 
     const firstKey = (component as any).idempotencyKey();
 
-    paymentService.createPaymentIntent.mockReturnValue(of({ client_secret: 'cs_test' }));
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({
+        client_secret: 'cs_test',
+        payment_intent_id: 'pi_retry_001',
+        transaction_ref: 'TXN-RETRY-001',
+      }),
+    );
     mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined' } });
     paymentService.recordFailure.mockReturnValue(of({}));
 
@@ -405,7 +421,13 @@ describe('PaymentFormComponent', () => {
     };
     (component as any).cardElement = { destroy: mockDestroy };
 
-    paymentService.createPaymentIntent.mockReturnValue(of({ client_secret: 'cs_test' }));
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({
+        client_secret: 'cs_test',
+        payment_intent_id: 'pi_retry_001',
+        transaction_ref: 'TXN-RETRY-001',
+      }),
+    );
     mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined' } });
     paymentService.recordFailure.mockReturnValue(of({}));
 
@@ -415,6 +437,12 @@ describe('PaymentFormComponent', () => {
 
     expect(mockDestroy).toHaveBeenCalled();
     expect(mockMount).toHaveBeenCalled();
+    expect(paymentService.recordFailure).toHaveBeenCalledWith(
+      7,
+      'Declined',
+      'pi_retry_001',
+      'TXN-RETRY-001',
+    );
     expect(component.cardholderName).toBe('');
     expect(component.cardElementReady()).toBe(false);
     mountRef.cleanup();

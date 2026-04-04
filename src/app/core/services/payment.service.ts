@@ -36,10 +36,20 @@ export class PaymentService {
     return this.http.post<Transaction>(`${this.base}/payment-success`, payload);
   }
 
-  recordFailure(bookingId: number, reason: string): Observable<any> {
-    return this.http.post(`${this.base}/payment-failure`, null, {
-      params: new HttpParams().set('booking_id', bookingId).set('reason', reason),
-    });
+  recordFailure(
+    bookingId: number,
+    reason: string,
+    paymentIntentId?: string,
+    transactionRef?: string,
+  ): Observable<any> {
+    let params = new HttpParams().set('booking_id', bookingId).set('reason', reason);
+    if (paymentIntentId) {
+      params = params.set('payment_intent_id', paymentIntentId);
+    }
+    if (transactionRef) {
+      params = params.set('transaction_ref', transactionRef);
+    }
+    return this.http.post(`${this.base}/payment-failure`, null, { params });
   }
 
   getPaymentStatus(bookingId: number): Observable<PaymentStateResponse> {

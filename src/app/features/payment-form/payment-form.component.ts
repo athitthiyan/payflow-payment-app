@@ -1214,7 +1214,12 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         // Record decline in backend — inventory stays locked if hold still valid (backend fix)
         try {
           await firstValueFrom(
-            this.paymentService.recordFailure(this.bookingId(), error.message || 'Card declined')
+            this.paymentService.recordFailure(
+              this.bookingId(),
+              error.message || 'Card declined',
+              intent.payment_intent_id,
+              intent.transaction_ref,
+            )
               .pipe(timeout(10_000))
           );
         } catch {
