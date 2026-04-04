@@ -12,7 +12,7 @@ import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { loadStripe, Stripe, StripeCardElement, StripeElements } from '@stripe/stripe-js';
+import { loadStripe, Stripe, StripeCardElement } from '@stripe/stripe-js';
 import { firstValueFrom } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import { PaymentService } from '../../core/services/payment.service';
