@@ -89,6 +89,15 @@ describe('PaymentFormComponent', () => {
     return { fixture, component };
   }
 
+  function createConnectedMountRef() {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    return {
+      nativeElement: mount,
+      cleanup: () => mount.remove(),
+    };
+  }
+
   function setupReadyComponent(component: PaymentFormComponent) {
     component.bookingAmount.set(300);
     component.bookingId.set(7);
@@ -165,7 +174,8 @@ describe('PaymentFormComponent', () => {
     });
 
     const { component } = createComponent();
-    component.cardMountRef = { nativeElement: document.createElement('div') } as any;
+    const mountRef = createConnectedMountRef();
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
 
     await (component as any).initStripe();
 
@@ -176,6 +186,7 @@ describe('PaymentFormComponent', () => {
     const readyHandler = mockOn.mock.calls.find(call => call[0] === 'ready')?.[1];
     readyHandler();
     expect(component.cardElementReady()).toBe(true);
+    mountRef.cleanup();
   });
 
   it('calls initStripe from ngAfterViewInit', () => {
@@ -196,7 +207,8 @@ describe('PaymentFormComponent', () => {
     mockLoadStripe.mockResolvedValue(null);
 
     const { component } = createComponent();
-    component.cardMountRef = { nativeElement: document.createElement('div') } as any;
+    const mountRef = createConnectedMountRef();
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
 
     await (component as any).initStripe();
     expect(component.stripeReady()).toBe(false);
@@ -210,17 +222,20 @@ describe('PaymentFormComponent', () => {
     changeHandler({ error: { message: 'Bad card' } });
 
     expect(component.cardError()).toBe('Bad card');
+    mountRef.cleanup();
   });
 
   it('keeps stripeReady false when Stripe initialization throws', async () => {
     mockLoadStripe.mockRejectedValue(new Error('stripe init failed'));
 
     const { component } = createComponent();
-    component.cardMountRef = { nativeElement: document.createElement('div') } as any;
+    const mountRef = createConnectedMountRef();
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
 
     await (component as any).initStripe();
 
     expect(component.stripeReady()).toBe(false);
+    mountRef.cleanup();
   });
 
   it('validates missing payment prerequisites before confirming card payment', async () => {
@@ -378,7 +393,8 @@ describe('PaymentFormComponent', () => {
       destroy: mockDestroy,
     };
     mockCreate.mockReturnValue(rebuiltCardElement);
-    component.cardMountRef = { nativeElement: document.createElement('div') } as any;
+    const mountRef = createConnectedMountRef();
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
     component.bookingAmount.set(300);
     component.bookingId.set(7);
     component.cardholderName = 'Athit';
@@ -401,6 +417,7 @@ describe('PaymentFormComponent', () => {
     expect(mockMount).toHaveBeenCalled();
     expect(component.cardholderName).toBe('');
     expect(component.cardElementReady()).toBe(false);
+    mountRef.cleanup();
   });
 
   it('transitions to conflict state on 409 unavailable response', async () => {

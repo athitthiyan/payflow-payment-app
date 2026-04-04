@@ -983,10 +983,12 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private mountCardElement(): void {
-    if (!this.stripe || !this.cardMountRef?.nativeElement) return;
+    const mountEl = this.cardMountRef?.nativeElement;
+    if (!this.stripe || !mountEl || !mountEl.isConnected) return;
 
     this.cardElementReady.set(false);
     this.cardElement?.destroy();
+    this.cardElement = null;
 
     const elements = this.stripe.elements({
       appearance: {
@@ -1038,7 +1040,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       },
     });
 
-    this.cardElement.mount(this.cardMountRef.nativeElement);
+    this.cardElement.mount(mountEl);
 
     this.cardElement.on('ready', () => {
       this.cardElementReady.set(true);
@@ -1054,7 +1056,14 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private restoreCardEntry(): void {
     this.step.set('details');
     this.cardElementReady.set(false);
-    setTimeout(() => this.mountCardElement(), 0);
+    this.cardElement?.destroy();
+    this.cardElement = null;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.mountCardElement();
+      });
+    });
   }
 
   private navigateToSuccess(transactionRef: string, amount: number, bookingRef?: string) {
