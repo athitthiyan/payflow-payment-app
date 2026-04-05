@@ -34,7 +34,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
               <span class="retry-meta">Hold expires in {{ holdMinutes() }}:{{ holdSecondsPad() }}</span>
             }
           </a>
-          <a href="mailto:support@stayease.com" class="btn btn--ghost">Contact Support</a>
+          <a href="mailto:support@stayvora.co.in" class="btn btn--ghost">Contact Support</a>
         </div>
       </div>
     </div>
