@@ -6,7 +6,10 @@
     "payflow-payment-app": {
       "projectType": "application",
       "schematics": {
-        "@schematics/angular:component": { "style": "scss", "standalone": true }
+        "@schematics/angular:component": {
+          "style": "scss",
+          "standalone": true
+        }
       },
       "root": "",
       "sourceRoot": "src",
@@ -18,36 +21,71 @@
             "outputPath": "dist/payflow-payment-app",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
+            "polyfills": [
+              "zone.js"
+            ],
             "tsConfig": "tsconfig.app.json",
-            "assets": ["src/favicon.ico", "src/assets"],
-            "styles": ["src/styles.scss"],
+            "assets": [
+              "src/favicon.ico",
+              "src/assets"
+            ],
+            "styles": [
+              "src/styles.scss"
+            ],
             "scripts": []
           },
           "configurations": {
             "production": {
               "budgets": [
-                { "type": "initial", "maximumWarning": "500kb", "maximumError": "1mb" },
-                { "type": "anyComponentStyle", "maximumWarning": "12kb", "maximumError": "16kb" }
+                {
+                  "type": "initial",
+                  "maximumWarning": "500kb",
+                  "maximumError": "1mb"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "12kb",
+                  "maximumError": "16kb"
+                }
               ],
               "outputHashing": "all"
             },
-            "development": { "optimization": false, "extractLicenses": false, "sourceMap": true }
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
           },
           "defaultConfiguration": "production"
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
-            "production": { "buildTarget": "payflow-payment-app:build:production" },
-            "development": { "buildTarget": "payflow-payment-app:build:development" }
+            "production": {
+              "buildTarget": "payflow-payment-app:build:production"
+            },
+            "development": {
+              "buildTarget": "payflow-payment-app:build:development"
+            }
           },
           "defaultConfiguration": "development"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": [
+              "src/**/*.ts",
+              "src/**/*.html"
+            ]
+          }
         }
       }
     }
   },
   "cli": {
-    "analytics": "1f8f4d1f-a8d4-499a-8401-cdcce987cf45"
+    "analytics": "1f8f4d1f-a8d4-499a-8401-cdcce987cf45",
+    "schematicCollections": [
+      "@angular-eslint/schematics"
+    ]
   }
 }

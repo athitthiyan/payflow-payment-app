@@ -127,10 +127,48 @@
 <a name='L62'></a><a href='#L62'>62</a>
 <a name='L63'></a><a href='#L63'>63</a>
 <a name='L64'></a><a href='#L64'>64</a>
-<a name='L65'></a><a href='#L65'>65</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">5x</span>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -201,21 +239,40 @@ import {
   TransactionListResponse,
 } from '../models/transaction.model';
 &nbsp;
+interface PaymentIntentResponse {
+  client_secret: string;
+  payment_intent_id?: string;
+  transaction_ref?: string;
+}
+&nbsp;
+interface ExtendHoldResponse {
+  message: string;
+  hold_expires_at?: string | null;
+}
+&nbsp;
+interface PaymentFailureResponse {
+  message: string;
+  booking_id?: number;
+  reason?: string;
+  payment_intent_id?: string;
+  transaction_ref?: string;
+}
+&nbsp;
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/payments`;
 &nbsp;
-  createPaymentIntent(bookingId: number, method: string = 'mock', idempotencyKey?: string): Observable&lt;any&gt; {
-    return this.http.post(`${this.base}/create-payment-intent`, {
+  createPaymentIntent(bookingId: number, method: string = 'mock', idempotencyKey?: string): Observable&lt;PaymentIntentResponse&gt; {
+    return this.http.post&lt;PaymentIntentResponse&gt;(`${this.base}/create-payment-intent`, {
       booking_id: bookingId,
       payment_method: method,
       ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
     });
   }
 &nbsp;
-  extendHold(bookingId: number, email: string): Observable&lt;any&gt; {
-    return this.http.post(`${environment.apiUrl}/bookings/${bookingId}/extend-hold`, { email });
+  extendHold(bookingId: number, email: string): Observable&lt;ExtendHoldResponse&gt; {
+    return this.http.post&lt;ExtendHoldResponse&gt;(`${environment.apiUrl}/bookings/${bookingId}/extend-hold`, { email });
   }
 &nbsp;
   confirmPayment(payload: {
@@ -234,7 +291,7 @@ export class PaymentService {
     reason: string,
     paymentIntentId?: string,
     transactionRef?: string,
-  ): Observable&lt;any&gt; {
+  ): Observable&lt;PaymentFailureResponse&gt; {
     let params = new HttpParams().set('booking_id', bookingId).set('reason', reason);
     if (paymentIntentId) {
       params = params.set('payment_intent_id', paymentIntentId);
@@ -242,7 +299,7 @@ export class PaymentService {
     if (transactionRef) {
       params = params.set('transaction_ref', transactionRef);
     }
-    return this.http.post(`${this.base}/payment-failure`, null, { params });
+    return this.http.post&lt;PaymentFailureResponse&gt;(`${this.base}/payment-failure`, null, { params });
   }
 &nbsp;
   getPaymentStatus(bookingId: number): Observable&lt;PaymentStateResponse&gt; {
@@ -262,7 +319,7 @@ export class PaymentService {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-04-05T15:40:08.075Z
+                at 2026-04-05T23:57:10.265Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>

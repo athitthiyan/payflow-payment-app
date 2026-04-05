@@ -8,21 +8,40 @@ import {
   TransactionListResponse,
 } from '../models/transaction.model';
 
+interface PaymentIntentResponse {
+  client_secret: string;
+  payment_intent_id?: string;
+  transaction_ref?: string;
+}
+
+interface ExtendHoldResponse {
+  message: string;
+  hold_expires_at?: string | null;
+}
+
+interface PaymentFailureResponse {
+  message: string;
+  booking_id?: number;
+  reason?: string;
+  payment_intent_id?: string;
+  transaction_ref?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/payments`;
 
-  createPaymentIntent(bookingId: number, method: string = 'mock', idempotencyKey?: string): Observable<any> {
-    return this.http.post(`${this.base}/create-payment-intent`, {
+  createPaymentIntent(bookingId: number, method: string = 'mock', idempotencyKey?: string): Observable<PaymentIntentResponse> {
+    return this.http.post<PaymentIntentResponse>(`${this.base}/create-payment-intent`, {
       booking_id: bookingId,
       payment_method: method,
       ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
     });
   }
 
-  extendHold(bookingId: number, email: string): Observable<any> {
-    return this.http.post(`${environment.apiUrl}/bookings/${bookingId}/extend-hold`, { email });
+  extendHold(bookingId: number, email: string): Observable<ExtendHoldResponse> {
+    return this.http.post<ExtendHoldResponse>(`${environment.apiUrl}/bookings/${bookingId}/extend-hold`, { email });
   }
 
   confirmPayment(payload: {
@@ -41,7 +60,7 @@ export class PaymentService {
     reason: string,
     paymentIntentId?: string,
     transactionRef?: string,
-  ): Observable<any> {
+  ): Observable<PaymentFailureResponse> {
     let params = new HttpParams().set('booking_id', bookingId).set('reason', reason);
     if (paymentIntentId) {
       params = params.set('payment_intent_id', paymentIntentId);
@@ -49,7 +68,7 @@ export class PaymentService {
     if (transactionRef) {
       params = params.set('transaction_ref', transactionRef);
     }
-    return this.http.post(`${this.base}/payment-failure`, null, { params });
+    return this.http.post<PaymentFailureResponse>(`${this.base}/payment-failure`, null, { params });
   }
 
   getPaymentStatus(bookingId: number): Observable<PaymentStateResponse> {

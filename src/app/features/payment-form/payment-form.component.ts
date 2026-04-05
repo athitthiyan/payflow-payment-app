@@ -21,6 +21,31 @@ import { environment } from '../../../environments/environment';
 type PaymentStep = 'details' | 'processing';
 type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expired' | 'conflict';
 
+interface PaymentRoomSummary {
+  hotel_name?: string;
+  image_url?: string;
+  location?: string;
+}
+
+interface PaymentBookingSummary {
+  booking_ref: string;
+  total_amount: number;
+  payment_status: string;
+  hold_expires_at?: string | null;
+  room?: PaymentRoomSummary;
+  check_in: string;
+  check_out: string;
+  nights: number;
+}
+
+interface PaymentErrorShape {
+  status?: number;
+  name?: string;
+  error?: {
+    detail?: string;
+  };
+}
+
 @Component({
   selector: 'app-payment-form',
   standalone: true,
@@ -141,8 +166,9 @@ type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expi
             <div class="card-form">
 
               <div class="form-group">
-                <label>Cardholder Name</label>
+                <label for="cardholder-name">Cardholder Name</label>
                 <input
+                  id="cardholder-name"
                   type="text"
                   [(ngModel)]="cardholderName"
                   name="cardholderName"
@@ -152,8 +178,13 @@ type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expi
               </div>
 
               <div class="form-group" style="margin-top:16px">
-                <label>Card Details</label>
-                <div #cardMount class="stripe-card-mount"></div>
+                <span id="card-details-label" class="form-label">Card Details</span>
+                <div
+                  #cardMount
+                  class="stripe-card-mount"
+                  role="group"
+                  aria-labelledby="card-details-label"
+                ></div>
               </div>
 
               @if (cardError() && uiState() !== 'failed_retry') {
@@ -865,7 +896,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   // Idempotency key (refreshed after each failed attempt)
   private idempotencyKey = signal(this.generateIdempotencyKey());
 
-  booking = signal<any>(null);
+  booking = signal<PaymentBookingSummary | null>(null);
   bookingId = signal(0);
   bookingRef = signal('');
   bookingAmount = signal(0);
@@ -908,7 +939,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   loadBooking(id: number) {
     this.bookingLoadError.set('');
-    this.http.get<any>(`${environment.apiUrl}/bookings/${id}`).subscribe({
+    this.http.get<PaymentBookingSummary>(`${environment.apiUrl}/bookings/${id}`).subscribe({
       next: b => {
         this.booking.set(b);
         this.bookingRef.set(b.booking_ref);
@@ -1268,9 +1299,10 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.navigateToSuccess(transaction.transaction_ref, transaction.amount, transaction.booking?.booking_ref);
       }
 
-    } catch (err: any) {
-      const status = err?.status;
-      const detail: string = err?.error?.detail || '';
+    } catch (err: unknown) {
+      const paymentError = err as PaymentErrorShape;
+      const status = paymentError.status;
+      const detail = paymentError.error?.detail || '';
 
       if (
         status === 409 &&
@@ -1291,7 +1323,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         } else {
           this.uiState.set('success');
         }
-      } else if (err?.name === 'TimeoutError') {
+      } else if (paymentError.name === 'TimeoutError') {
         this.uiState.set('failed_retry');
         this.restoreCardEntry();
         this.cardError.set('Payment timed out. Please try again.');

@@ -11,6 +11,30 @@ import { PaymentFormComponent } from './payment-form.component';
 import { PaymentService } from '../../core/services/payment.service';
 import { environment } from '../../../environments/environment';
 
+interface StripeCardElementStub {
+  clear?: jest.Mock;
+  destroy: jest.Mock;
+}
+
+interface PaymentFormComponentPrivateState {
+  stripe: {
+    confirmCardPayment?: jest.Mock;
+    elements?: jest.Mock;
+  } | null;
+  cardElement: StripeCardElementStub | null;
+  idempotencyKey: () => string;
+  holdCountdownInterval: ReturnType<typeof setInterval> | null;
+  initStripe: () => Promise<void>;
+  queueCardMount: () => void;
+  verifyConfirmedPayment: () => Promise<boolean>;
+  startHoldCountdown: (holdExpiresAt: string) => void;
+  navigateToSuccess: (ref: string, amount: number, bookingRef?: string) => void;
+}
+
+interface MountRefLike {
+  nativeElement: HTMLDivElement;
+}
+
 const mockMount = jest.fn();
 const mockOn = jest.fn();
 const mockDestroy = jest.fn();
@@ -107,8 +131,8 @@ describe('PaymentFormComponent', () => {
     component.bookingId.set(7);
     component.cardholderName = 'Athit';
     component.cardElementReady.set(true);
-    (component as any).stripe = { confirmCardPayment: mockConfirmCardPayment };
-    (component as any).cardElement = { clear: mockClear, destroy: mockDestroy };
+    (component as unknown as PaymentFormComponentPrivateState).stripe = { confirmCardPayment: mockConfirmCardPayment };
+    (component as unknown as PaymentFormComponentPrivateState).cardElement = { clear: mockClear, destroy: mockDestroy };
   }
 
   // ─── Original tests (updated for new error messages / state machine) ─────────
@@ -179,10 +203,10 @@ describe('PaymentFormComponent', () => {
 
     const { component } = createComponent();
     const mountRef = createConnectedMountRef();
-    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as unknown as MountRefLike;
     component.paymentMethod.set('card');
 
-    await (component as any).initStripe();
+    await (component as unknown as PaymentFormComponentPrivateState).initStripe();
 
     expect(mockLoadStripe).toHaveBeenCalled();
     expect(mockMount).toHaveBeenCalled();
@@ -196,7 +220,7 @@ describe('PaymentFormComponent', () => {
 
   it('calls initStripe from ngAfterViewInit', () => {
     const { component } = createComponent();
-    const initSpy = jest.spyOn(component as any, 'initStripe').mockResolvedValue(undefined);
+    const initSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'initStripe').mockResolvedValue(undefined);
 
     component.ngAfterViewInit();
 
@@ -213,17 +237,17 @@ describe('PaymentFormComponent', () => {
 
     const { component } = createComponent();
     const mountRef = createConnectedMountRef();
-    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as unknown as MountRefLike;
     component.paymentMethod.set('card');
 
-    await (component as any).initStripe();
+    await (component as unknown as PaymentFormComponentPrivateState).initStripe();
     expect(component.stripeReady()).toBe(false);
 
     mockLoadStripe.mockResolvedValue({
       elements: mockElements,
       confirmCardPayment: mockConfirmCardPayment,
     });
-    await (component as any).initStripe();
+    await (component as unknown as PaymentFormComponentPrivateState).initStripe();
     const changeHandler = mockOn.mock.calls.find(call => call[0] === 'change')?.[1];
     changeHandler({ error: { message: 'Bad card' } });
 
@@ -236,9 +260,9 @@ describe('PaymentFormComponent', () => {
 
     const { component } = createComponent();
     const mountRef = createConnectedMountRef();
-    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as unknown as MountRefLike;
 
-    await (component as any).initStripe();
+    await (component as unknown as PaymentFormComponentPrivateState).initStripe();
 
     expect(component.stripeReady()).toBe(false);
     mountRef.cleanup();
@@ -258,8 +282,8 @@ describe('PaymentFormComponent', () => {
     await component.processCardPayment();
     expect(component.cardError()).toContain('Payment system not ready');
 
-    (component as any).stripe = {};
-    (component as any).cardElement = { clear: mockClear, destroy: mockDestroy };
+    (component as unknown as PaymentFormComponentPrivateState).stripe = {};
+    (component as unknown as PaymentFormComponentPrivateState).cardElement = { clear: mockClear, destroy: mockDestroy };
     await component.processCardPayment();
     expect(component.cardError()).toContain('Card form still initializing');
   });
@@ -274,8 +298,8 @@ describe('PaymentFormComponent', () => {
 
   it('queues a card remount when switching to the card tab after Stripe is ready', () => {
     const { component } = createComponent();
-    const queueSpy = jest.spyOn(component as any, 'queueCardMount').mockImplementation(() => {});
-    (component as any).stripe = { elements: mockElements };
+    const queueSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'queueCardMount').mockImplementation(() => {});
+    (component as unknown as PaymentFormComponentPrivateState).stripe = { elements: mockElements };
 
     component.switchTab('card');
 
@@ -314,13 +338,13 @@ describe('PaymentFormComponent', () => {
     component.bookingAmount.set(100);
     component.cardholderName = 'Athit';
     component.cardElementReady.set(true);
-    (component as any).stripe = {};
-    (component as any).cardElement = { clear: mockClear, destroy: mockDestroy };
+    (component as unknown as PaymentFormComponentPrivateState).stripe = {};
+    (component as unknown as PaymentFormComponentPrivateState).cardElement = { clear: mockClear, destroy: mockDestroy };
 
     paymentService.createPaymentIntent.mockReturnValue(
       throwError(() => ({ status: 409, error: { detail: 'Booking already paid' } }))
     );
-    const verifySpy = jest.spyOn(component as any, 'verifyConfirmedPayment').mockResolvedValue(true);
+    const verifySpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment').mockResolvedValue(true);
 
     await component.processCardPayment();
 
@@ -336,13 +360,13 @@ describe('PaymentFormComponent', () => {
     component.bookingAmount.set(100);
     component.cardholderName = 'Athit';
     component.cardElementReady.set(true);
-    (component as any).stripe = {};
-    (component as any).cardElement = { clear: mockClear, destroy: mockDestroy };
+    (component as unknown as PaymentFormComponentPrivateState).stripe = {};
+    (component as unknown as PaymentFormComponentPrivateState).cardElement = { clear: mockClear, destroy: mockDestroy };
 
     paymentService.createPaymentIntent.mockReturnValue(
       throwError(() => ({ status: 409, error: { detail: 'Booking already paid' } })),
     );
-    jest.spyOn(component as any, 'verifyConfirmedPayment').mockResolvedValue(false);
+    jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment').mockResolvedValue(false);
 
     await component.processCardPayment();
 
@@ -402,7 +426,7 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     setupReadyComponent(component);
 
-    const firstKey = (component as any).idempotencyKey();
+    const firstKey = (component as unknown as PaymentFormComponentPrivateState).idempotencyKey();
 
     paymentService.createPaymentIntent.mockReturnValue(
       of({
@@ -418,7 +442,7 @@ describe('PaymentFormComponent', () => {
     await jest.runAllTimersAsync();
     await p;
 
-    const secondKey = (component as any).idempotencyKey();
+    const secondKey = (component as unknown as PaymentFormComponentPrivateState).idempotencyKey();
     expect(secondKey).not.toBe(firstKey);
   });
 
@@ -431,16 +455,16 @@ describe('PaymentFormComponent', () => {
     };
     mockCreate.mockReturnValue(rebuiltCardElement);
     const mountRef = createConnectedMountRef();
-    component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as unknown as MountRefLike;
     component.bookingAmount.set(300);
     component.bookingId.set(7);
     component.cardholderName = 'Athit';
     component.cardElementReady.set(true);
-    (component as any).stripe = {
+    (component as unknown as PaymentFormComponentPrivateState).stripe = {
       confirmCardPayment: mockConfirmCardPayment,
       elements: mockElements,
     };
-    (component as any).cardElement = { destroy: mockDestroy };
+    (component as unknown as PaymentFormComponentPrivateState).cardElement = { destroy: mockDestroy };
 
     paymentService.createPaymentIntent.mockReturnValue(
       of({
@@ -489,7 +513,7 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
 
     const futureExpiry = new Date(Date.now() + 2000).toISOString();
-    (component as any).startHoldCountdown(futureExpiry);
+    (component as unknown as PaymentFormComponentPrivateState).startHoldCountdown(futureExpiry);
 
     expect(component.uiState()).toBe('idle'); // not expired yet
 
@@ -514,7 +538,7 @@ describe('PaymentFormComponent', () => {
     component.uiState.set('success');
 
     const futureExpiry = new Date(Date.now() + 1000).toISOString();
-    (component as any).startHoldCountdown(futureExpiry);
+    (component as unknown as PaymentFormComponentPrivateState).startHoldCountdown(futureExpiry);
     jest.advanceTimersByTime(2000);
 
     expect(component.uiState()).toBe('success');
@@ -669,7 +693,7 @@ describe('PaymentFormComponent', () => {
 
   it('mock payment success falls back to polling when confirm endpoint fails', async () => {
     const { component } = createComponent();
-    const verifySpy = jest.spyOn(component as any, 'verifyConfirmedPayment').mockResolvedValue(false);
+    const verifySpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment').mockResolvedValue(false);
     setupReadyComponent(component);
 
     component.bookingId.set(7);
@@ -744,7 +768,14 @@ describe('PaymentFormComponent', () => {
     const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
     component.bookingId.set(7);
     component.bookingRef.set('');
-    component.booking.set({ booking_ref: 'BK-FROM-BOOKING' });
+    component.booking.set({
+      booking_ref: 'BK-FROM-BOOKING',
+      total_amount: 140,
+      payment_status: 'pending',
+      check_in: '2026-04-10',
+      check_out: '2026-04-12',
+      nights: 2,
+    });
 
     (component as unknown as { navigateToSuccess: (ref: string, amount: number, bookingRef?: string) => void })
       .navigateToSuccess('TXN-2', 140);
@@ -808,15 +839,15 @@ describe('PaymentFormComponent', () => {
   it('destroys the card element and stops countdown on destroy', () => {
     const { component } = createComponent();
     component.cardElementReady.set(true);
-    (component as any).cardElement = { destroy: mockDestroy };
+    (component as unknown as PaymentFormComponentPrivateState).cardElement = { destroy: mockDestroy };
 
     const futureExpiry = new Date(Date.now() + 5000).toISOString();
-    (component as any).startHoldCountdown(futureExpiry);
+    (component as unknown as PaymentFormComponentPrivateState).startHoldCountdown(futureExpiry);
     component.ngOnDestroy();
 
     expect(component.cardElementReady()).toBe(false);
     expect(mockDestroy).toHaveBeenCalled();
-    expect((component as any).holdCountdownInterval).toBeNull();
+    expect((component as unknown as PaymentFormComponentPrivateState).holdCountdownInterval).toBeNull();
   });
 
   it('polls payment status until a confirmed payment appears', async () => {
@@ -834,7 +865,7 @@ describe('PaymentFormComponent', () => {
         latest_transaction: { transaction_ref: 'TXN-LATE', amount: 123 },
       }));
 
-    const promise = (component as any).verifyConfirmedPayment();
+    const promise = (component as unknown as PaymentFormComponentPrivateState).verifyConfirmedPayment();
     await jest.advanceTimersByTimeAsync(1500);
     await promise;
 
@@ -853,7 +884,7 @@ describe('PaymentFormComponent', () => {
     component.bookingId.set(7);
     paymentService.getPaymentStatus.mockReturnValue(throwError(() => new Error('nope')));
 
-    const promise = (component as any).verifyConfirmedPayment();
+    const promise = (component as unknown as PaymentFormComponentPrivateState).verifyConfirmedPayment();
     for (let i = 0; i < 6; i++) {
       await jest.advanceTimersByTimeAsync(1500);
     }

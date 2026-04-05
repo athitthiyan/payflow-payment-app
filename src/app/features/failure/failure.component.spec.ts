@@ -3,6 +3,10 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 
 import { FailureComponent } from './failure.component';
 
+interface FailureComponentPrivateState {
+  countdownInterval: ReturnType<typeof setInterval> | null;
+}
+
 describe('FailureComponent', () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -104,6 +108,6 @@ describe('FailureComponent', () => {
     component.ngOnInit();
     component.ngOnDestroy();
 
-    expect((component as any).countdownInterval).toBeNull();
+    expect((component as unknown as FailureComponentPrivateState).countdownInterval).toBeNull();
   });
 });
