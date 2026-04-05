@@ -501,6 +501,14 @@ describe('PaymentFormComponent', () => {
     expect(component.holdSecondsLeft()).toBe(0);
   });
 
+  it('formats hold countdown minutes and seconds with leading zeroes', () => {
+    const { component } = createComponent();
+    component.holdSecondsLeft.set(125);
+
+    expect(component.holdMinutes()).toBe('02');
+    expect(component.holdSecondsPad()).toBe('05');
+  });
+
   it('keeps success state when countdown expires after payment succeeds', async () => {
     const { component } = createComponent();
     component.uiState.set('success');
@@ -622,6 +630,16 @@ describe('PaymentFormComponent', () => {
     expect(component.cardError()).toContain('Maximum retry attempts');
   });
 
+  it('returns early from mock payment when booking details are incomplete', () => {
+    const { component } = createComponent();
+
+    component.processMockPayment(true);
+    component.processMockPayment(false);
+
+    expect(paymentService.confirmPayment).not.toHaveBeenCalled();
+    expect(paymentService.recordFailure).not.toHaveBeenCalled();
+  });
+
   it('mock payment success records transaction and navigates to success', async () => {
     const { component } = createComponent();
     const router = TestBed.inject(Router);
@@ -700,6 +718,47 @@ describe('PaymentFormComponent', () => {
     expect(component.processing()).toBe(false);
   });
 
+  it('uses bookingRef signal when navigateToSuccess is called without an explicit booking ref', () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.bookingId.set(7);
+    component.bookingRef.set('BK-SIGNAL');
+
+    (component as unknown as { navigateToSuccess: (ref: string, amount: number, bookingRef?: string) => void })
+      .navigateToSuccess('TXN-1', 120);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/success'], {
+      queryParams: {
+        ref: 'TXN-1',
+        amount: 120,
+        booking_id: 7,
+        booking_ref: 'BK-SIGNAL',
+      },
+    });
+  });
+
+  it('uses booking booking_ref fallback when navigateToSuccess has no explicit ref and signal is empty', () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.bookingId.set(7);
+    component.bookingRef.set('');
+    component.booking.set({ booking_ref: 'BK-FROM-BOOKING' });
+
+    (component as unknown as { navigateToSuccess: (ref: string, amount: number, bookingRef?: string) => void })
+      .navigateToSuccess('TXN-2', 140);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/success'], {
+      queryParams: {
+        ref: 'TXN-2',
+        amount: 140,
+        booking_id: 7,
+        booking_ref: 'BK-FROM-BOOKING',
+      },
+    });
+  });
+
   it('timeout error transitions to failed_retry with timeout message', async () => {
     const { component } = createComponent();
     setupReadyComponent(component);
@@ -716,6 +775,34 @@ describe('PaymentFormComponent', () => {
     expect(component.uiState()).toBe('failed_retry');
     expect(component.cardError()).toContain('timed out');
     expect(component.processing()).toBe(false);
+  });
+
+  it('uses generated transaction data when payment polling confirms payment without latest transaction details', async () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.bookingId.set(7);
+    component.bookingAmount.set(321);
+
+    paymentService.getPaymentStatus.mockReturnValue(
+      of({
+        payment_status: 'paid',
+        booking_ref: 'BK123',
+        latest_transaction: null,
+      }),
+    );
+
+    const promise = (component as unknown as { verifyConfirmedPayment: () => Promise<boolean> }).verifyConfirmedPayment();
+    await expect(promise).resolves.toBe(true);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/success'], {
+      queryParams: expect.objectContaining({
+        ref: expect.stringMatching(/^TXN-/),
+        amount: 321,
+        booking_id: 7,
+        booking_ref: 'BK123',
+      }),
+    });
   });
 
   it('destroys the card element and stops countdown on destroy', () => {
@@ -772,5 +859,136 @@ describe('PaymentFormComponent', () => {
     }
 
     await expect(promise).resolves.toBe(false);
+  });
+
+  it('clears the card error when the stripe change event has no validation error', async () => {
+    const cardElement = {
+      mount: mockMount,
+      on: mockOn,
+      destroy: mockDestroy,
+    };
+    mockCreate.mockReturnValue(cardElement);
+    mockLoadStripe.mockResolvedValue({
+      elements: mockElements,
+      confirmCardPayment: mockConfirmCardPayment,
+    });
+
+    const { component } = createComponent();
+    const mountRef = createConnectedMountRef();
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as never;
+    component.paymentMethod.set('card');
+    component.cardError.set('Old error');
+
+    await (component as unknown as { initStripe: () => Promise<void> }).initStripe();
+
+    const changeHandler = mockOn.mock.calls.find(call => call[0] === 'change')?.[1] as ((event: { error?: { message?: string } }) => void);
+    changeHandler({});
+
+    expect(component.cardError()).toBe('');
+    mountRef.cleanup();
+  });
+
+  it('handles declined card errors without a Stripe message and with an active hold countdown', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+    component.holdSecondsLeft.set(125);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({
+        client_secret: 'cs_test_123',
+        payment_intent_id: 'pi_declined_002',
+        transaction_ref: 'TXN-DECLINED-002',
+      }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: {} });
+    paymentService.recordFailure.mockReturnValue(of({}));
+
+    const promise = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(paymentService.recordFailure).toHaveBeenCalledWith(
+      7,
+      'Card declined',
+      'pi_declined_002',
+      'TXN-DECLINED-002',
+    );
+    expect(component.cardError()).toContain('Payment failed.');
+    expect(component.cardError()).toContain('02:05');
+  });
+
+  it('continues retry recovery when recording a declined payment fails', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({
+        client_secret: 'cs_test_124',
+        payment_intent_id: 'pi_declined_003',
+        transaction_ref: 'TXN-DECLINED-003',
+      }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined again' } });
+    paymentService.recordFailure.mockReturnValue(throwError(() => new Error('record failed')));
+
+    const promise = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.cardError()).toContain('Declined again');
+  });
+
+  it('falls back to the default conflict message when a conflict detail is empty', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({ status: 409, error: { detail: '' } })),
+    );
+
+    const promise = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.cardError()).toBe('Payment failed. Please try again.');
+  });
+
+  it('uses the generic failure message when the backend error detail is empty', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({ status: 500, error: { detail: '' } })),
+    );
+
+    const promise = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.cardError()).toBe('Payment failed. Please try again.');
+  });
+
+  it('uses the default conflict message when availability conflicts return an empty detail', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+    const includesSpy = jest.spyOn(String.prototype, 'includes').mockReturnValue(true);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({ status: 409, error: { detail: '' } })),
+    );
+
+    const promise = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await promise;
+
+    expect(component.uiState()).toBe('conflict');
+    expect(component.cardError()).toBe(
+      'These dates are no longer available. Please go back and select new dates.',
+    );
+
+    includesSpy.mockRestore();
   });
 });
