@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
@@ -13,22 +13,27 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       </div>
 
       <div class="failure-card">
-        <div class="failure-card__icon">❌</div>
+        <div class="failure-card__icon">Payment failed</div>
         <h1>Payment <span>Failed</span></h1>
         <p>{{ reason }}</p>
 
         <div class="failure-card__suggestions">
           <h4>What you can do:</h4>
           <ul>
-            <li>✅ Check your card details and try again</li>
-            <li>✅ Make sure you have sufficient funds</li>
-            <li>✅ Contact your bank if the issue persists</li>
-            <li>✅ Try a different payment method</li>
+            <li>Check your card details and try again</li>
+            <li>Make sure you have sufficient funds</li>
+            <li>Contact your bank if the issue persists</li>
+            <li>Try a different payment method</li>
           </ul>
         </div>
 
         <div class="failure-card__actions">
-          <a routerLink="/" [queryParams]="{ booking_id: bookingId }" class="btn btn--primary btn--lg">🔄 Try Again</a>
+          <a routerLink="/" [queryParams]="{ booking_id: bookingId }" class="btn btn--primary btn--lg">
+            Retry Payment
+            @if (holdSecondsLeft > 0) {
+              <span class="retry-meta">Hold expires in {{ holdMinutes() }}:{{ holdSecondsPad() }}</span>
+            }
+          </a>
           <a href="mailto:support@stayease.com" class="btn btn--ghost">Contact Support</a>
         </div>
       </div>
@@ -72,28 +77,32 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       margin: 32px 24px;
       box-shadow: 0 0 60px rgba(239,68,68,0.1), var(--pf-shadow);
       animation: fadeInUp 0.5s ease;
+    }
 
-      h1 {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 2.2rem;
-        color: white;
-        margin-bottom: 12px;
-        span { color: #ef4444; }
-      }
+    .failure-card h1 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2.2rem;
+      color: white;
+      margin-bottom: 12px;
+    }
 
-      & > p {
-        font-size: 15px;
-        color: var(--pf-text-muted);
-        margin-bottom: 32px;
-        padding: 12px 20px;
-        background: rgba(239,68,68,0.08);
-        border: 1px solid rgba(239,68,68,0.2);
-        border-radius: var(--radius-md);
-      }
+    .failure-card h1 span { color: #ef4444; }
+
+    .failure-card > p {
+      font-size: 15px;
+      color: var(--pf-text-muted);
+      margin-bottom: 32px;
+      padding: 12px 20px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: var(--radius-md);
     }
 
     .failure-card__icon {
-      font-size: 4rem;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #fca5a5;
       margin-bottom: 24px;
       display: block;
     }
@@ -104,18 +113,18 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       border-radius: var(--radius-lg);
       padding: 20px;
       margin-bottom: 32px;
-
-      h4 { font-size: 14px; color: white; margin-bottom: 12px; }
-
-      ul {
-        list-style: none;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-
-        li { font-size: 14px; color: var(--pf-text-muted); }
-      }
     }
+
+    .failure-card__suggestions h4 { font-size: 14px; color: white; margin-bottom: 12px; }
+
+    .failure-card__suggestions ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .failure-card__suggestions li { font-size: 14px; color: var(--pf-text-muted); }
 
     .failure-card__actions {
       display: flex;
@@ -123,17 +132,59 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       justify-content: center;
       flex-wrap: wrap;
     }
+
+    .retry-meta {
+      display: block;
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 6px;
+    }
   `],
 })
-export class FailureComponent implements OnInit {
+export class FailureComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
 
   reason = 'Your payment could not be processed.';
   bookingId = '';
+  holdExpiresAt = '';
+  holdSecondsLeft = 0;
+  private countdownInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit() {
-    const r = this.route.snapshot.queryParamMap.get('reason');
-    if (r) this.reason = r;
+    const reason = this.route.snapshot.queryParamMap.get('reason');
+    if (reason) this.reason = reason;
     this.bookingId = this.route.snapshot.queryParamMap.get('booking_id') || '';
+    this.holdExpiresAt = this.route.snapshot.queryParamMap.get('hold_expires_at') || '';
+    if (this.holdExpiresAt) {
+      this.startCountdown(this.holdExpiresAt);
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+  }
+
+  holdMinutes(): string {
+    return String(Math.floor(this.holdSecondsLeft / 60)).padStart(2, '0');
+  }
+
+  holdSecondsPad(): string {
+    return String(this.holdSecondsLeft % 60).padStart(2, '0');
+  }
+
+  private startCountdown(holdExpiresAt: string) {
+    const expiry = new Date(holdExpiresAt).getTime();
+    const tick = () => {
+      this.holdSecondsLeft = Math.max(0, Math.round((expiry - Date.now()) / 1000));
+      if (this.holdSecondsLeft === 0 && this.countdownInterval) {
+        clearInterval(this.countdownInterval);
+        this.countdownInterval = null;
+      }
+    };
+    tick();
+    this.countdownInterval = setInterval(tick, 1000);
   }
 }

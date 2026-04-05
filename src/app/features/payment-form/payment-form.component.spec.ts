@@ -36,6 +36,10 @@ describe('PaymentFormComponent', () => {
 
   beforeEach(async () => {
     jest.useFakeTimers();
+    jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
     mockMount.mockReset();
     mockOn.mockReset();
     mockDestroy.mockReset();
@@ -176,6 +180,7 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     const mountRef = createConnectedMountRef();
     component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
+    component.paymentMethod.set('card');
 
     await (component as any).initStripe();
 
@@ -209,6 +214,7 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     const mountRef = createConnectedMountRef();
     component.cardMountRef = { nativeElement: mountRef.nativeElement } as any;
+    component.paymentMethod.set('card');
 
     await (component as any).initStripe();
     expect(component.stripeReady()).toBe(false);
@@ -273,6 +279,7 @@ describe('PaymentFormComponent', () => {
 
     component.bookingId.set(7);
     component.bookingAmount.set(100);
+    component.holdExpiresAt.set('2026-04-05T09:10:00.000Z');
     paymentService.recordFailure.mockReturnValue(of({}));
 
     component.processMockPayment(false);
@@ -282,7 +289,11 @@ describe('PaymentFormComponent', () => {
 
     expect(paymentService.recordFailure).toHaveBeenCalledWith(7, 'Card declined (demo)');
     expect(navigateSpy).toHaveBeenCalledWith(['/failure'], {
-      queryParams: { booking_id: 7, reason: 'Card declined (demo)' },
+      queryParams: {
+        booking_id: 7,
+        reason: 'Card declined (demo)',
+        hold_expires_at: '2026-04-05T09:10:00.000Z',
+      },
     });
   });
 

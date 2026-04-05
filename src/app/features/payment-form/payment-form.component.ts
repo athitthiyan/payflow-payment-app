@@ -137,8 +137,8 @@ type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expi
             }
 
             <!-- ─── Real Stripe Card Form ────────────────────────────── -->
-            <!-- Always rendered (not inside @if) so Stripe can mount to #cardMount -->
-            <div [style.display]="paymentMethod() === 'card' ? 'block' : 'none'" class="card-form">
+            @if (paymentMethod() === 'card') {
+            <div class="card-form">
 
               <div class="form-group">
                 <label>Cardholder Name</label>
@@ -183,6 +183,7 @@ type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expi
                 }
               </button>
             </div>
+            }
 
             <!-- Trust Footer -->
             <div class="pf-trust">
@@ -831,7 +832,7 @@ type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expi
   `],
 })
 export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
-  @ViewChild('cardMount') cardMountRef!: ElementRef;
+  @ViewChild('cardMount') cardMountRef?: ElementRef<HTMLDivElement>;
 
   private route = inject(ActivatedRoute);
   private router = inject(Router);
@@ -1053,17 +1054,20 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.stripeReady.set(true);
   }
 
-  private restoreCardEntry(): void {
-    this.step.set('details');
-    this.cardElementReady.set(false);
-    this.cardElement?.destroy();
-    this.cardElement = null;
-
+  private queueCardMount(): void {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         this.mountCardElement();
       });
     });
+  }
+
+  private restoreCardEntry(): void {
+    this.step.set('details');
+    this.cardElementReady.set(false);
+    this.cardElement?.destroy();
+    this.cardElement = null;
+    this.queueCardMount();
   }
 
   private navigateToSuccess(transactionRef: string, amount: number, bookingRef?: string) {
@@ -1107,7 +1111,10 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cardElementReady.set(false);
       this.stripe = await loadStripe(environment.stripePublishableKey);
       if (!this.stripe) return;
-      this.mountCardElement();
+      this.stripeReady.set(true);
+      if (this.paymentMethod() === 'card') {
+        this.queueCardMount();
+      }
     } catch {
       this.stripeReady.set(false);
     }
@@ -1118,6 +1125,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   switchTab(method: 'mock' | 'card') {
     this.paymentMethod.set(method);
     this.cardError.set('');
+    if (method === 'card' && this.stripe) {
+      this.queueCardMount();
+    }
   }
 
   // ─── Mock Payment ────────────────────────────────────────────────────────────
@@ -1153,7 +1163,11 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         const failReason = 'Card declined (demo)';
         this.paymentService.recordFailure(this.bookingId(), failReason).subscribe();
         this.router.navigate(['/failure'], {
-          queryParams: { booking_id: this.bookingId(), reason: failReason },
+          queryParams: {
+            booking_id: this.bookingId(),
+            reason: failReason,
+            hold_expires_at: this.holdExpiresAt(),
+          },
         });
       }
     });
