@@ -272,6 +272,16 @@ describe('PaymentFormComponent', () => {
     expect(component.cardError()).toBe('');
   });
 
+  it('queues a card remount when switching to the card tab after Stripe is ready', () => {
+    const { component } = createComponent();
+    const queueSpy = jest.spyOn(component as any, 'queueCardMount').mockImplementation(() => {});
+    (component as any).stripe = { elements: mockElements };
+
+    component.switchTab('card');
+
+    expect(queueSpy).toHaveBeenCalled();
+  });
+
   it('handles mock payment failure navigation', async () => {
     const { component } = createComponent();
     const router = TestBed.inject(Router);

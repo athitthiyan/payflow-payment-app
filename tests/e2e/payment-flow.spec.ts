@@ -183,6 +183,27 @@ test.describe('PayFlow End-to-End Journeys', () => {
     await expect(page.getByRole('link', { name: /Retry Payment|Try Again/i }).or(page.getByRole('button', { name: /Retry Payment|Try Again/i }))).toBeVisible();
   });
 
+  test('failure page preserves booking id, shows countdown, and can retry to success', async ({ page }) => {
+    await installStripeMock(page);
+    await mockBookingAndPaymentApis(page);
+
+    const holdExpiresAt = new Date(Date.now() + 120000).toISOString();
+    await page.goto(`/failure?reason=Card%20was%20declined&booking_id=7&ref=BK-PAYFLOW-001&hold_expires_at=${encodeURIComponent(holdExpiresAt)}`);
+
+    const retryLink = page.getByRole('link', { name: /Retry Payment/i });
+    await expect(retryLink).toBeVisible();
+    await expect(retryLink).toHaveAttribute('href', /booking_id=7/);
+    await expect(page.getByText(/Hold expires in/i)).toBeVisible();
+
+    await retryLink.click();
+    await expect(page).toHaveURL(/booking_id=7/);
+
+    await page.getByRole('button', { name: /Simulate Successful Payment/i }).click();
+
+    await expect(page).toHaveURL(/success/);
+    await expect(page.getByText('TXN-PLAYWRIGHT-001')).toBeVisible();
+  });
+
   test('transaction history page loads and filters by status', async ({ page }) => {
     await page.route('**/payments/transactions**', async (route: Route) => {
       const url = route.request().url();
