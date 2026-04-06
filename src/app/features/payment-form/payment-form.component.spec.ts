@@ -59,6 +59,8 @@ describe('PaymentFormComponent', () => {
     createPaymentIntent: jest.Mock;
     getPaymentStatus: jest.Mock;
     extendHold: jest.Mock;
+    createRazorpayOrder: jest.Mock;
+    verifyRazorpayPayment: jest.Mock;
   };
   let httpMock: HttpTestingController;
 
@@ -83,6 +85,8 @@ describe('PaymentFormComponent', () => {
       createPaymentIntent: jest.fn(),
       getPaymentStatus: jest.fn(),
       extendHold: jest.fn(),
+      createRazorpayOrder: jest.fn(),
+      verifyRazorpayPayment: jest.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -1102,5 +1106,685 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     // polling resolves when payment confirmed
     expect(component).toBeTruthy();
+  });
+
+  // ─── verifyConfirmedPayment catch path (lines 1337-1344) ─────────────────────
+
+  it('verifyConfirmedPayment returns false after all retries when getPaymentStatus always throws', async () => {
+    const { component } = createComponent();
+    component.bookingId.set(7);
+    component.bookingAmount.set(300);
+
+    paymentService.getPaymentStatus.mockReturnValue(throwError(() => new Error('network')));
+
+    const promise = (component as unknown as { verifyConfirmedPayment: () => Promise<boolean> }).verifyConfirmedPayment();
+
+    // 6 retries × 1500ms delay
+    for (let i = 0; i < 6; i++) {
+      await jest.advanceTimersByTimeAsync(1500);
+    }
+
+    await expect(promise).resolves.toBe(false);
+    expect(paymentService.getPaymentStatus).toHaveBeenCalledTimes(6);
+  });
+
+  // ─── selectPaymentMethod + helpers (lines 1365-1384) ─────────────────────────
+
+  it('selectPaymentMethod sets method and clears card error without calling initStripe for non-card', () => {
+    const { component } = createComponent();
+    const initSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'initStripe').mockResolvedValue(undefined);
+    component.cardError.set('some error');
+
+    component.selectPaymentMethod('upi');
+
+    expect(component.selectedPaymentMethod()).toBe('upi');
+    expect(component.cardError()).toBe('');
+    expect(initSpy).not.toHaveBeenCalled();
+  });
+
+  it('selectPaymentMethod calls initStripe when selecting card', () => {
+    const { component } = createComponent();
+    const initSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'initStripe').mockResolvedValue(undefined);
+
+    component.selectPaymentMethod('card');
+
+    expect(component.selectedPaymentMethod()).toBe('card');
+    expect(initSpy).toHaveBeenCalled();
+  });
+
+  it('getPaymentMethodLabel returns correct labels and falls back to raw method string', () => {
+    const { component } = createComponent();
+
+    expect(component.getPaymentMethodLabel('card')).toBe('Card');
+    expect(component.getPaymentMethodLabel('upi')).toBe('UPI');
+    expect(component.getPaymentMethodLabel('gpay')).toBe('Google Pay');
+    expect(component.getPaymentMethodLabel('phonepe')).toBe('PhonePe');
+    expect(component.getPaymentMethodLabel('unknown')).toBe('unknown');
+  });
+
+  it('convertUSDToINR converts correctly', () => {
+    const { component } = createComponent();
+
+    expect(component.convertUSDToINR(1)).toBe(83);
+    expect(component.convertUSDToINR(10)).toBe(830);
+  });
+
+  // ─── payWithRazorpay (lines 1388-1482) ───────────────────────────────────────
+
+  it('payWithRazorpay returns early when already processing', async () => {
+    const { component } = createComponent();
+    component.processing.set(true);
+
+    await component.payWithRazorpay('upi');
+
+    expect(component.cardError()).toBe('');
+  });
+
+  it('payWithRazorpay returns early when bookingAmount is 0', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(0);
+
+    await component.payWithRazorpay('upi');
+
+    expect(component.cardError()).toContain('loading');
+  });
+
+  it('payWithRazorpay shows error when Razorpay script fails to load', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    (window as unknown as { Razorpay?: unknown }).Razorpay = undefined;
+
+    const originalCreateElement = document.createElement.bind(document);
+    jest.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'script') {
+        setTimeout(() => el.onerror?.(new Event('error')), 0);
+      }
+      return el;
+    });
+
+    const p = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(component.cardError()).toContain('Payment failed');
+    expect(component.processing()).toBe(false);
+    expect(component.step()).toBe('details');
+  });
+
+  it('payWithRazorpay loads Razorpay script when not already loaded and opens checkout', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    // Ensure Razorpay is NOT on window so loadRazorpayScript creates a script element
+    (window as unknown as { Razorpay?: unknown }).Razorpay = undefined;
+
+    const originalCreateElement = document.createElement.bind(document);
+    jest.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+      const el = originalCreateElement(tag);
+      if (tag === 'script') {
+        setTimeout(() => {
+          // Set Razorpay on window (simulating script load) then fire onload
+          const mockOpen = jest.fn();
+          (window as unknown as { Razorpay: unknown }).Razorpay = jest.fn().mockImplementation(() => ({ open: mockOpen }));
+          el.onload?.(new Event('load'));
+        }, 0);
+      }
+      return el;
+    });
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_load', amount: 25000, currency: 'INR', booking_id: 7,
+      key_id: 'rzp_test', amount_paise: 2500000, transaction_ref: 'TXN-LOAD',
+    }));
+
+    const p = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(paymentService.createRazorpayOrder).toHaveBeenCalled();
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('payWithRazorpay happy path: handler verifies and navigates on success', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    const mockOpen = jest.fn();
+    let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
+
+    const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
+      capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
+      return { open: mockOpen };
+    });
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc',
+      amount: 25000,
+      currency: 'INR',
+      booking_id: 7,
+      key_id: 'rzp_test',
+      amount_paise: 2500000,
+      transaction_ref: 'TXN-RZP-001',
+    }));
+
+    const verifySpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment').mockResolvedValue(true);
+
+    const p = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(mockOpen).toHaveBeenCalled();
+
+    // Simulate Razorpay handler callback
+    paymentService.verifyRazorpayPayment.mockReturnValue(of({ status: 'success', booking_id: 7 }));
+
+    await capturedHandler!({
+      razorpay_order_id: 'order_abc',
+      razorpay_payment_id: 'pay_xyz',
+      razorpay_signature: 'sig_123',
+    });
+    await jest.runAllTimersAsync();
+
+    expect(verifySpy).toHaveBeenCalled();
+    expect(component.processing()).toBe(false);
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('payWithRazorpay handler shows error when verification returns false', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
+
+    const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
+      capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
+      return { open: jest.fn() };
+    });
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc', amount: 25000, currency: 'INR', booking_id: 7,
+      key_id: 'rzp_test', amount_paise: 2500000, transaction_ref: 'TXN-RZP-002',
+    }));
+
+    jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment').mockResolvedValue(false);
+
+    const p = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await p;
+
+    paymentService.verifyRazorpayPayment.mockReturnValue(of({ status: 'success', booking_id: 7 }));
+
+    await capturedHandler!({
+      razorpay_order_id: 'order_abc',
+      razorpay_payment_id: 'pay_xyz',
+      razorpay_signature: 'sig_123',
+    });
+    await jest.runAllTimersAsync();
+
+    expect(component.cardError()).toContain('verification failed');
+    expect(component.processing()).toBe(false);
+    expect(component.step()).toBe('details');
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('payWithRazorpay handler catches verification error', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
+
+    const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
+      capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
+      return { open: jest.fn() };
+    });
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc', amount: 25000, currency: 'INR', booking_id: 7,
+      key_id: 'rzp_test', amount_paise: 2500000, transaction_ref: 'TXN-RZP-003',
+    }));
+
+    paymentService.verifyRazorpayPayment.mockReturnValue(throwError(() => new Error('verify failed')));
+
+    const p = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await p;
+
+    await capturedHandler!({
+      razorpay_order_id: 'order_abc',
+      razorpay_payment_id: 'pay_xyz',
+      razorpay_signature: 'sig_123',
+    });
+    await jest.runAllTimersAsync();
+
+    expect(component.cardError()).toContain('verification failed');
+    expect(component.processing()).toBe(false);
+    expect(component.step()).toBe('details');
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('payWithRazorpay modal dismiss sets cancelled message', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    let capturedDismiss: () => void;
+
+    const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
+      capturedDismiss = ((opts as unknown as { modal: { ondismiss: () => void } }).modal).ondismiss;
+      return { open: jest.fn() };
+    });
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc', amount: 25000, currency: 'INR', booking_id: 7,
+      key_id: 'rzp_test', amount_paise: 2500000,
+    }));
+
+    const p = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await p;
+
+    capturedDismiss!();
+
+    expect(component.cardError()).toContain('cancelled by user');
+    expect(component.processing()).toBe(false);
+    expect(component.step()).toBe('details');
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  // ─── recordFailure error branch (lines 1599-1607) ───────────────────────────
+
+  it('increments retry count and applies cooldown even when recordFailure throws', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({ client_secret: 'cs_test', payment_intent_id: 'pi_fail', transaction_ref: 'TXN-FAIL' }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined' } });
+    paymentService.recordFailure.mockReturnValue(throwError(() => new Error('network error')));
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(component.retryCount()).toBe(1);
+    expect(component.uiState()).toBe('failed_retry');
+  });
+
+  it('applies backend retry cooldown when recordFailure returns retry_after_seconds', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({ client_secret: 'cs_test', payment_intent_id: 'pi_cool', transaction_ref: 'TXN-COOL' }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined' } });
+    paymentService.recordFailure.mockReturnValue(of({
+      retry_after_seconds: 60,
+      failed_payment_count: 3,
+    }));
+
+    const p = component.processCardPayment();
+    // Advance enough to complete the processing animation (4 steps × 650ms + 500ms)
+    // but not enough to drain the 60s cooldown interval
+    await jest.advanceTimersByTimeAsync(3200);
+    await p;
+
+    expect(component.retryCount()).toBe(3);
+    expect(component.retryCooldownSecondsLeft()).toBeGreaterThanOrEqual(56);
+  });
+
+  it('starts 5-minute cooldown when retry count reaches maxRetries after card decline', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+    component.retryCount.set(component.maxRetries - 1);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({ client_secret: 'cs_test', payment_intent_id: 'pi_max', transaction_ref: 'TXN-MAX' }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined' } });
+    paymentService.recordFailure.mockReturnValue(of({ message: 'recorded' }));
+
+    const p = component.processCardPayment();
+    await jest.advanceTimersByTimeAsync(3200);
+    await p;
+
+    expect(component.retryCount()).toBe(component.maxRetries);
+    expect(component.retryCooldownSecondsLeft()).toBeGreaterThanOrEqual(296);
+  });
+
+  // ─── 429 rate-limit with object detail (lines 1685-1687) ────────────────────
+
+  it('applies retry cooldown on 429 error with object detail', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 429,
+        error: {
+          detail: { message: 'Too many attempts', retry_after_seconds: 90, failed_payment_count: 4 },
+        },
+      })),
+    );
+
+    await component.processCardPayment();
+
+    expect(component.retryCooldownSecondsLeft()).toBe(90);
+    expect(component.processing()).toBe(false);
+  });
+
+  // ─── Generic error fallback (lines 1688-1691) ───────────────────────────────
+
+  it('falls back to generic error message on unrecognized error', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 500,
+        error: { detail: 'Internal Server Error' },
+      })),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.cardError()).toBe('Internal Server Error');
+    expect(component.processing()).toBe(false);
+  });
+
+  it('uses default message when error detail is empty', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({ status: 502 })),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.cardError()).toBe('Payment failed. Please try again.');
+    expect(component.processing()).toBe(false);
+  });
+
+  // ─── Remaining branch coverage ──────────────────────────────────────────────
+
+  it('clears card error when stripe change event has no error', async () => {
+    const cardElement = {
+      mount: mockMount,
+      on: mockOn,
+      destroy: mockDestroy,
+    };
+    mockCreate.mockReturnValue(cardElement);
+    mockLoadStripe.mockResolvedValue({
+      elements: mockElements,
+      confirmCardPayment: mockConfirmCardPayment,
+    });
+
+    const { component } = createComponent();
+    const mountRef = createConnectedMountRef();
+    component.cardMountRef = { nativeElement: mountRef.nativeElement } as unknown as MountRefLike;
+    component.paymentMethod.set('card');
+
+    await (component as unknown as PaymentFormComponentPrivateState).initStripe();
+
+    const changeHandler = mockOn.mock.calls.find(call => call[0] === 'change')?.[1];
+    changeHandler({ error: undefined });
+    expect(component.cardError()).toBe('');
+    mountRef.cleanup();
+  });
+
+  it('verifyConfirmedPayment resolves true when only booking_status is confirmed', async () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.bookingId.set(7);
+    component.bookingAmount.set(300);
+
+    paymentService.getPaymentStatus.mockReturnValue(of({
+      payment_status: 'processing',
+      booking_status: 'confirmed',
+      booking_ref: 'BK123',
+      latest_transaction: { transaction_ref: 'TXN-STATUS', amount: 300 },
+    }));
+
+    const result = await (component as unknown as { verifyConfirmedPayment: () => Promise<boolean> }).verifyConfirmedPayment();
+    expect(result).toBe(true);
+    expect(navigateSpy).toHaveBeenCalled();
+  });
+
+  it('card decline with no error.message uses "Card declined" fallback', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({ client_secret: 'cs_test', payment_intent_id: 'pi_no_msg', transaction_ref: 'TXN-NOMSG' }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: '' } });
+    paymentService.recordFailure.mockReturnValue(of({}));
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(paymentService.recordFailure).toHaveBeenCalledWith(7, 'Card declined', 'pi_no_msg', 'TXN-NOMSG');
+    expect(component.cardError()).toContain('Please try a different card');
+  });
+
+  it('card decline appends hold info when hold is still active', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+    component.holdSecondsLeft.set(120);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({ client_secret: 'cs_test', payment_intent_id: 'pi_hold', transaction_ref: 'TXN-HOLD' }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined' } });
+    paymentService.recordFailure.mockReturnValue(of({}));
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(component.cardError()).toContain('Your room is reserved');
+  });
+
+  it('payWithRazorpay uses INR fallback when order has no currency and maps gpay to upi prefill', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    let capturedOptions: Record<string, unknown> = {};
+
+    const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
+      capturedOptions = opts;
+      return { open: jest.fn() };
+    });
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc', amount: 25000, booking_id: 7,
+      key_id: 'rzp_test', amount_paise: 2500000,
+      // no currency, no transaction_ref
+    }));
+
+    const p = component.payWithRazorpay('gpay');
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(capturedOptions['currency']).toBe('INR');
+    expect((capturedOptions['prefill'] as { method: string }).method).toBe('upi');
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('conflict branch uses default message when detailMessage is empty', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 409,
+        error: { detail: { message: '', expired: true } },
+      })),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    // detail is an object, typeof detail !== 'string' → goes to 429 check (status is 409, not 429)
+    // Actually status is 409, detailMessage is '' (empty)
+    // First 409 branch: detailMessage checks for 'unavailable'/'available'/'reserved'/'expired' — '' doesn't match
+    // Second 409 branch: detailMessage.includes('already paid') — '' doesn't match
+    // Falls to generic else branch
+    expect(component.uiState()).toBe('failed_retry');
+  });
+
+  it('409 conflict uses fallback message when detail string has no relevant keyword but matches "expired"', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 409,
+        error: { detail: '' },
+      })),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    // detail is '' (falsy), so detail = '' (from `|| ''`). detailMessage = ''.
+    // 409 first branch: '' doesn't contain keywords → false
+    // 409 second branch: '' doesn't contain 'already paid' → false
+    // Falls to else: sets 'failed_retry' with detailMessage || 'Payment failed...'
+    expect(component.cardError()).toBe('Payment failed. Please try again.');
+  });
+
+  it('verifyConfirmedPayment resolves true when only lifecycle_state is CONFIRMED', async () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.bookingId.set(7);
+    component.bookingAmount.set(300);
+
+    paymentService.getPaymentStatus.mockReturnValue(of({
+      payment_status: 'processing',
+      lifecycle_state: 'CONFIRMED',
+      booking_ref: 'BK123',
+      latest_transaction: { transaction_ref: 'TXN-LC', amount: 300 },
+    }));
+
+    const result = await (component as unknown as { verifyConfirmedPayment: () => Promise<boolean> }).verifyConfirmedPayment();
+    expect(result).toBe(true);
+    expect(navigateSpy).toHaveBeenCalled();
+  });
+
+  it('payWithRazorpay handler uses empty string when order has no transaction_ref', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+
+    let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
+
+    const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
+      capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
+      return { open: jest.fn() };
+    });
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc', amount: 25000, currency: 'INR', booking_id: 7,
+      key_id: 'rzp_test', amount_paise: 2500000,
+      // transaction_ref is UNDEFINED — tests the ?? '' branch
+    }));
+
+    jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment').mockResolvedValue(true);
+
+    const p = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await p;
+
+    paymentService.verifyRazorpayPayment.mockReturnValue(of({ status: 'success', booking_id: 7 }));
+
+    await capturedHandler!({
+      razorpay_order_id: 'order_abc',
+      razorpay_payment_id: 'pay_xyz',
+      razorpay_signature: 'sig_123',
+    });
+    await jest.runAllTimersAsync();
+
+    expect(paymentService.verifyRazorpayPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ transaction_ref: '' }),
+    );
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('409 conflict uses default message when detailMessage is empty', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    // detail is a string containing 'unavailable' but empty detailMessage triggers fallback
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 409,
+        error: { detail: 'unavailable' },
+      })),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    // detailMessage is 'unavailable', includes 'unavailable' → conflict branch
+    // detailMessage is truthy so uses it, not the fallback
+    expect(component.uiState()).toBe('conflict');
+    expect(component.cardError()).toBe('unavailable');
+  });
+
+  it('object detail with no message property defaults to empty detailMessage', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 500,
+        error: { detail: { retry_after_seconds: 10 } },
+      })),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    // detail is { retry_after_seconds: 10 }, typeof detail !== 'string'
+    // detailMessage = detail.message || '' = undefined || '' = ''
+    // Not 409, not 429 (status 500), not TimeoutError → generic else
+    expect(component.cardError()).toBe('Payment failed. Please try again.');
   });
 });

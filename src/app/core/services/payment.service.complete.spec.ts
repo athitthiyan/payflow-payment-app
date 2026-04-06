@@ -102,4 +102,41 @@ describe('PaymentService (extended branches)', () => {
       req.flush({ transactions: [], total: 0 });
     });
   });
+
+  describe('createRazorpayOrder', () => {
+    it('POSTs to /razorpay/create-order without idempotency key', () => {
+      service.createRazorpayOrder(7, 'upi').subscribe();
+      const req = httpMock.expectOne(`${environment.apiUrl}/payments/razorpay/create-order`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ booking_id: 7, payment_method: 'upi' });
+      req.flush({ order_id: 'order_123', amount: 500, currency: 'INR', booking_id: 7 });
+    });
+
+    it('POSTs to /razorpay/create-order with idempotency key', () => {
+      service.createRazorpayOrder(7, 'card', 'idem-key-1').subscribe();
+      const req = httpMock.expectOne(`${environment.apiUrl}/payments/razorpay/create-order`);
+      expect(req.request.body).toEqual({
+        booking_id: 7,
+        payment_method: 'card',
+        idempotency_key: 'idem-key-1',
+      });
+      req.flush({ order_id: 'order_456', amount: 500, currency: 'INR', booking_id: 7 });
+    });
+  });
+
+  describe('verifyRazorpayPayment', () => {
+    it('POSTs to /razorpay/verify-payment with full payload', () => {
+      const payload = {
+        razorpay_order_id: 'order_abc',
+        razorpay_payment_id: 'pay_xyz',
+        razorpay_signature: 'sig_123',
+        transaction_ref: 'TXN-RZP-001',
+      };
+      service.verifyRazorpayPayment(payload).subscribe();
+      const req = httpMock.expectOne(`${environment.apiUrl}/payments/razorpay/verify-payment`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual(payload);
+      req.flush({ status: 'success', booking_id: 7 });
+    });
+  });
 });

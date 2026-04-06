@@ -28,7 +28,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
         </div>
 
         <div class="failure-card__actions">
-          <a routerLink="/" [queryParams]="{ booking_id: bookingId }" class="btn btn--primary btn--lg">
+          <a routerLink="/pay" [queryParams]="{ booking_id: bookingId }" class="btn btn--primary btn--lg">
             Retry Payment
             @if (holdSecondsLeft > 0) {
               <span class="retry-meta">Hold expires in {{ holdMinutes() }}:{{ holdSecondsPad() }}</span>

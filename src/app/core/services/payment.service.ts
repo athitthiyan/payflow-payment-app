@@ -122,4 +122,12 @@ export class PaymentService {
   }): Observable<RazorpayVerifyResponse> {
     return this.http.post<RazorpayVerifyResponse>(`${this.base}/razorpay/verify-payment`, data);
   }
+
+  getTransactions(status?: string, page: number = 1, perPage: number = 10): Observable<TransactionListResponse> {
+    let params = new HttpParams().set('page', page).set('per_page', perPage);
+    if (status) {
+      params = params.set('status', status);
+    }
+    return this.http.get<TransactionListResponse>(`${this.base}/transactions`, { params });
+  }
 }

@@ -150,7 +150,7 @@ interface PaymentErrorShape {
 
               <!-- Payment Method Selection -->
               <div class="form-group">
-                <label class="form-label">Payment Method</label>
+                <p class="form-label">Payment Method</p>
                 <div class="payment-methods">
                   <button
                     class="payment-method-btn"
@@ -1445,7 +1445,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                transaction_ref: order.transaction_ref,
+                transaction_ref: order.transaction_ref ?? '',
               })
             );
 
@@ -1669,7 +1669,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         )
       ) {
         this.uiState.set('conflict');
-        this.cardError.set(detailMessage || 'These dates are no longer available. Please go back and select new dates.');
+        this.cardError.set(detailMessage);
       } else if (status === 409 && detailMessage.toLowerCase().includes('already paid')) {
         if (!(await this.verifyConfirmedPayment())) {
           this.uiState.set('failed_retry');
