@@ -34,11 +34,11 @@ describe('PaymentService', () => {
     req.flush({});
   });
 
-  it('creates a payment intent with the default mock payment method', () => {
+  it('creates a payment intent with the default card payment method', () => {
     service.createPaymentIntent(12).subscribe();
 
     const req = httpMock.expectOne(`${environment.apiUrl}/payments/create-payment-intent`);
-    expect(req.request.body).toEqual({ booking_id: 12, payment_method: 'mock' });
+    expect(req.request.body).toEqual({ booking_id: 12, payment_method: 'card' });
     req.flush({});
   });
 

@@ -42,8 +42,7 @@ import { environment } from '../../../environments/environment';
         </div>
 
         <div class="success-card__links">
-          <p>Check analytics for this booking in</p>
-          <a href="https://insightboard-admin.vercel.app" target="_blank" class="link-cyan">InsightBoard Admin Dashboard →</a>
+          <p>Your invoice, voucher, and booking details are now available from your Stayvora booking page.</p>
         </div>
 
         <!-- Confetti dots -->
@@ -255,8 +254,8 @@ export class SuccessComponent implements OnInit {
   }));
 
   ngOnInit() {
-    this.transactionRef = this.route.snapshot.queryParamMap.get('ref') || 'TXN-DEMO12345';
-    this.amount = Number(this.route.snapshot.queryParamMap.get('amount') || 987.5);
+    this.transactionRef = this.route.snapshot.queryParamMap.get('ref') || 'TXN-PENDING';
+    this.amount = Number(this.route.snapshot.queryParamMap.get('amount') || 0);
     this.bookingRef = this.route.snapshot.queryParamMap.get('booking_ref') || '';
     this.bookingId = this.route.snapshot.queryParamMap.get('booking_id') || '';
 

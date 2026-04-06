@@ -189,6 +189,28 @@ describe('PaymentFormComponent', () => {
     expect(component.uiState()).toBe('success');
   });
 
+  it('navigates to success when booking is already confirmed even before payment_status is normalized', () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    component.ngOnInit();
+    const req = httpMock.expectOne(`${environment.apiUrl}/bookings/7`);
+    req.flush({
+      booking_ref: 'BK123',
+      total_amount: 500,
+      status: 'confirmed',
+      payment_status: 'processing',
+      room: {},
+      check_in: '2026-04-10',
+      check_out: '2026-04-12',
+      nights: 2,
+    });
+
+    expect(navigateSpy).toHaveBeenCalled();
+    expect(component.uiState()).toBe('success');
+  });
+
   it('initializes stripe element and waits for ready event', async () => {
     const cardElement = {
       mount: mockMount,
@@ -288,22 +310,9 @@ describe('PaymentFormComponent', () => {
     expect(component.cardError()).toContain('Card form still initializing');
   });
 
-  it('switches tabs and clears card errors', () => {
+  it('defaults to the secure card flow', () => {
     const { component } = createComponent();
-    component.cardError.set('boom');
-    component.switchTab('card');
     expect(component.paymentMethod()).toBe('card');
-    expect(component.cardError()).toBe('');
-  });
-
-  it('queues a card remount when switching to the card tab after Stripe is ready', () => {
-    const { component } = createComponent();
-    const queueSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'queueCardMount').mockImplementation(() => {});
-    (component as unknown as PaymentFormComponentPrivateState).stripe = { elements: mockElements };
-
-    component.switchTab('card');
-
-    expect(queueSpy).toHaveBeenCalled();
   });
 
   it('handles mock payment failure navigation', async () => {
@@ -896,6 +905,40 @@ describe('PaymentFormComponent', () => {
         booking_id: 7,
         booking_ref: 'BK123',
       }),
+    });
+  });
+
+  it('treats confirmed booking status or lifecycle state as a final successful poll result', async () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    component.bookingId.set(7);
+    component.bookingAmount.set(321);
+
+    paymentService.getPaymentStatus.mockReturnValue(
+      of({
+        payment_status: 'processing',
+        booking_status: 'confirmed',
+        lifecycle_state: 'CONFIRMED',
+        booking_ref: 'BK123',
+        latest_transaction: {
+          transaction_ref: 'TXN-CONFIRMED',
+          amount: 321,
+        },
+      }),
+    );
+
+    await expect(
+      (component as unknown as { verifyConfirmedPayment: () => Promise<boolean> }).verifyConfirmedPayment(),
+    ).resolves.toBe(true);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/success'], {
+      queryParams: {
+        ref: 'TXN-CONFIRMED',
+        amount: 321,
+        booking_id: 7,
+        booking_ref: 'BK123',
+      },
     });
   });
 

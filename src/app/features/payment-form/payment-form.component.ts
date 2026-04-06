@@ -30,7 +30,9 @@ interface PaymentRoomSummary {
 interface PaymentBookingSummary {
   booking_ref: string;
   total_amount: number;
+  status?: string;
   payment_status: string;
+  lifecycle_state?: string;
   hold_expires_at?: string | null;
   room?: PaymentRoomSummary;
   check_in: string;
@@ -120,49 +122,6 @@ interface PaymentErrorShape {
               </div>
             }
 
-            <!-- Method Tabs -->
-            <div class="pf-method-tabs">
-              <button class="pf-method-tab" [class.active]="paymentMethod() === 'mock'" (click)="switchTab('mock')">
-                Demo Mode
-              </button>
-              <button class="pf-method-tab" [class.active]="paymentMethod() === 'card'" (click)="switchTab('card')">
-                💳 Credit Card (Stripe)
-              </button>
-            </div>
-
-            <!-- ─── Mock / Demo Mode ─────────────────────────────────── -->
-            @if (paymentMethod() === 'mock') {
-              <div class="demo-payment">
-                <div class="demo-payment__info">
-                  <h3>Demo Payment Mode</h3>
-                  <p>Simulates a real payment without charging any card. Perfect for portfolio demonstrations.</p>
-                </div>
-                <div class="demo-payment__options">
-                  <button
-                    class="demo-btn demo-btn--success"
-                    [disabled]="!bookingAmount() || processing()"
-                    (click)="processMockPayment(true)"
-                  >
-                    ✅ Simulate Successful Payment
-                    <span>→ \${{ bookingAmount() | number:'1.0-0' }} charged</span>
-                  </button>
-                  <button
-                    class="demo-btn demo-btn--failure"
-                    [disabled]="!bookingAmount() || processing()"
-                    (click)="processMockPayment(false)"
-                  >
-                    ❌ Simulate Failed Payment
-                    <span>→ Card declined</span>
-                  </button>
-                </div>
-                @if (!bookingAmount() && !bookingLoadError()) {
-                  <p class="loading-hint">⏳ Loading booking details…</p>
-                }
-              </div>
-            }
-
-            <!-- ─── Real Stripe Card Form ────────────────────────────── -->
-            @if (paymentMethod() === 'card') {
             <div class="card-form">
 
               <div class="form-group">
@@ -192,8 +151,7 @@ interface PaymentErrorShape {
               }
 
               <div class="test-cards-info">
-                <strong>Test cards:</strong> 4242 4242 4242 4242 (success) · 4000 0000 0000 0002 (decline)<br />
-                Use any future expiry date and any 3-digit CVV.
+                Your payment is processed securely with Stripe. Card details are encrypted and handled using bank-grade checkout controls.
               </div>
 
               <button
@@ -214,7 +172,6 @@ interface PaymentErrorShape {
                 }
               </button>
             </div>
-            }
 
             <!-- Trust Footer -->
             <div class="pf-trust">
@@ -439,96 +396,6 @@ interface PaymentErrorShape {
       font-weight: 600;
       cursor: pointer;
       flex-shrink: 0;
-    }
-
-    /* Method Tabs */
-    .pf-method-tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 24px;
-      background: var(--pf-surface);
-      border: 1px solid var(--pf-border);
-      border-radius: var(--radius-lg);
-      padding: 6px;
-    }
-
-    .pf-method-tab {
-      flex: 1;
-      padding: 12px;
-      border-radius: var(--radius-md);
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--pf-text-muted);
-      background: none;
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-
-    .pf-method-tab.active {
-      background: rgba(34,211,238,0.1);
-      color: var(--pf-primary);
-      border: 1px solid rgba(34,211,238,0.2);
-    }
-
-    /* Demo Payment */
-    .demo-payment { animation: fadeInUp 0.4s ease; }
-
-    .demo-payment__info {
-      background: rgba(34,211,238,0.05);
-      border: 1px solid rgba(34,211,238,0.15);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .demo-payment__info h3 { font-size: 15px; color: var(--pf-primary); margin-bottom: 8px; }
-    .demo-payment__info p { font-size: 14px; color: var(--pf-text-muted); line-height: 1.6; }
-
-    .demo-payment__options { display: flex; flex-direction: column; gap: 12px; }
-
-    .demo-btn {
-      width: 100%;
-      padding: 20px 24px;
-      border-radius: var(--radius-lg);
-      font-size: 16px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: all 0.25s;
-      cursor: pointer;
-    }
-
-    .demo-btn span { font-size: 13px; font-weight: 400; opacity: 0.8; }
-    .demo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .demo-btn--success {
-      background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05));
-      border: 1px solid rgba(34,197,94,0.3);
-      color: #22c55e;
-    }
-
-    .demo-btn--success:not(:disabled):hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(34,197,94,0.2);
-    }
-
-    .demo-btn--failure {
-      background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05));
-      border: 1px solid rgba(239,68,68,0.3);
-      color: #ef4444;
-    }
-
-    .demo-btn--failure:not(:disabled):hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(239,68,68,0.2);
-    }
-
-    .loading-hint {
-      text-align: center;
-      color: var(--pf-text-muted);
-      font-size: 13px;
-      margin-top: 16px;
     }
 
     /* Card Form */
@@ -877,7 +744,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   // Component state
   step = signal<PaymentStep>('details');
   uiState = signal<PaymentUiState>('idle');
-  paymentMethod = signal<'mock' | 'card'>('mock');
+  paymentMethod = signal<'mock' | 'card'>('card');
   processing = signal(false);
   processingStepIdx = signal(-1);
   stripeReady = signal(false);
@@ -946,7 +813,11 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.bookingAmount.set(b.total_amount);
         this.bookingLoadError.set('');
 
-        if (b.payment_status === 'paid') {
+        if (
+          b.payment_status === 'paid'
+          || b.status === 'confirmed'
+          || b.lifecycle_state === 'CONFIRMED'
+        ) {
           this.uiState.set('success');
           this.navigateToSuccess(`TXN-${b.booking_ref}`, b.total_amount, b.booking_ref);
           return;
@@ -1116,7 +987,11 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     for (let attempt = 0; attempt < 6; attempt++) {
       try {
         const status = await firstValueFrom(this.paymentService.getPaymentStatus(this.bookingId()));
-        if (status.payment_status === 'paid') {
+        if (
+          status.payment_status === 'paid'
+          || status.booking_status === 'confirmed'
+          || status.lifecycle_state === 'CONFIRMED'
+        ) {
           this.navigateToSuccess(
             status.latest_transaction?.transaction_ref || `TXN-${Date.now()}`,
             status.latest_transaction?.amount || this.bookingAmount(),
@@ -1143,23 +1018,13 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.stripe = await loadStripe(environment.stripePublishableKey);
       if (!this.stripe) return;
       this.stripeReady.set(true);
-      if (this.paymentMethod() === 'card') {
-        this.queueCardMount();
-      }
+      this.queueCardMount();
     } catch {
       this.stripeReady.set(false);
     }
   }
 
   // ─── Tab Switch ──────────────────────────────────────────────────────────────
-
-  switchTab(method: 'mock' | 'card') {
-    this.paymentMethod.set(method);
-    this.cardError.set('');
-    if (method === 'card' && this.stripe) {
-      this.queueCardMount();
-    }
-  }
 
   // ─── Mock Payment ────────────────────────────────────────────────────────────
 

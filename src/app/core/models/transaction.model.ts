@@ -35,5 +35,6 @@ export interface PaymentStateResponse {
   booking_ref: string;
   booking_status: string;
   payment_status: string;
+  lifecycle_state?: string;
   latest_transaction: Transaction | null;
 }

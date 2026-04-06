@@ -32,7 +32,7 @@ export class PaymentService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/payments`;
 
-  createPaymentIntent(bookingId: number, method: string = 'mock', idempotencyKey?: string): Observable<PaymentIntentResponse> {
+  createPaymentIntent(bookingId: number, method: string = 'card', idempotencyKey?: string): Observable<PaymentIntentResponse> {
     return this.http.post<PaymentIntentResponse>(`${this.base}/create-payment-intent`, {
       booking_id: bookingId,
       payment_method: method,

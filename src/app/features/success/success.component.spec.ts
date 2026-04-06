@@ -44,7 +44,7 @@ describe('SuccessComponent', () => {
     expect(component.bookingAppUrl).toContain('booking_id=7');
   });
 
-  it('falls back to demo values when query params are missing', async () => {
+  it('falls back to neutral values when query params are missing', async () => {
     TestBed.resetTestingModule();
 
     await TestBed.configureTestingModule({
@@ -69,8 +69,8 @@ describe('SuccessComponent', () => {
 
     component.ngOnInit();
 
-    expect(component.transactionRef).toBe('TXN-DEMO12345');
-    expect(component.amount).toBe(987.5);
+    expect(component.transactionRef).toBe('TXN-PENDING');
+    expect(component.amount).toBe(0);
     expect(component.bookingAppUrl).toContain('/booking-confirmation');
     expect(component.bookingAppUrl).not.toContain('booking_id=');
   });
