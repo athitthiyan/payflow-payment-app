@@ -37,7 +37,4 @@ export interface PaymentStateResponse {
   payment_status: string;
   lifecycle_state?: string;
   latest_transaction: Transaction | null;
-  failed_payment_count?: number;
-  retry_after_seconds?: number;
-  retry_available_at?: string | null;
-}
+  

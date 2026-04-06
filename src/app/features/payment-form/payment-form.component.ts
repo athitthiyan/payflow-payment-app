@@ -127,55 +127,126 @@ interface PaymentErrorShape {
 
             <div class="card-form">
 
+              <!-- Payment Method Selection -->
               <div class="form-group">
-                <label for="cardholder-name">Cardholder Name</label>
-                <input
-                  id="cardholder-name"
-                  type="text"
-                  [(ngModel)]="cardholderName"
-                  name="cardholderName"
-                  class="form-control"
-                  placeholder="John Doe"
-                />
+                <label class="form-label">Payment Method</label>
+                <div class="payment-methods">
+                  <button
+                    class="payment-method-btn"
+                    [class.active]="selectedPaymentMethod() === 'card'"
+                    (click)="selectPaymentMethod('card')"
+                    type="button"
+                  >
+                    <span class="payment-method-icon">💳</span>
+                    <span class="payment-method-label">Card</span>
+                  </button>
+                  <button
+                    class="payment-method-btn"
+                    [class.active]="selectedPaymentMethod() === 'upi'"
+                    (click)="selectPaymentMethod('upi')"
+                    type="button"
+                  >
+                    <span class="payment-method-icon">📱</span>
+                    <span class="payment-method-label">UPI</span>
+                  </button>
+                  <button
+                    class="payment-method-btn"
+                    [class.active]="selectedPaymentMethod() === 'gpay'"
+                    (click)="selectPaymentMethod('gpay')"
+                    type="button"
+                  >
+                    <span class="payment-method-icon">G</span>
+                    <span class="payment-method-label">GPay</span>
+                  </button>
+                  <button
+                    class="payment-method-btn"
+                    [class.active]="selectedPaymentMethod() === 'phonepe'"
+                    (click)="selectPaymentMethod('phonepe')"
+                    type="button"
+                  >
+                    <span class="payment-method-icon">📞</span>
+                    <span class="payment-method-label">PhonePe</span>
+                  </button>
+                </div>
               </div>
 
-              <div class="form-group" style="margin-top:16px">
-                <span id="card-details-label" class="form-label">Card Details</span>
-                <div
-                  #cardMount
-                  class="stripe-card-mount"
-                  role="group"
-                  aria-labelledby="card-details-label"
-                ></div>
-              </div>
+              <!-- Stripe Card Form (shown only for card payment) -->
+              @if (selectedPaymentMethod() === 'card') {
+                <div class="form-group">
+                  <label for="cardholder-name">Cardholder Name</label>
+                  <input
+                    id="cardholder-name"
+                    type="text"
+                    [(ngModel)]="cardholderName"
+                    name="cardholderName"
+                    class="form-control"
+                    placeholder="John Doe"
+                  />
+                </div>
 
-              @if (cardError() && uiState() !== 'failed_retry') {
-                <div class="card-error">⚠️ {{ cardError() }}</div>
+                <div class="form-group" style="margin-top:16px">
+                  <span id="card-details-label" class="form-label">Card Details</span>
+                  <div
+                    #cardMount
+                    class="stripe-card-mount"
+                    role="group"
+                    aria-labelledby="card-details-label"
+                  ></div>
+                </div>
+
+                @if (cardError() && uiState() !== 'failed_retry') {
+                  <div class="card-error">⚠️ {{ cardError() }}</div>
+                }
+
+                <div class="test-cards-info">
+                  Your payment is processed securely with Stripe. Card details are encrypted and handled using bank-grade checkout controls.
+                </div>
+
+                <button
+                  class="btn btn--primary pay-btn"
+                  (click)="processCardPayment()"
+                  [disabled]="processing() || retryCooldownSecondsLeft() > 0 || !stripeReady() || !cardElementReady() || !bookingAmount()"
+                >
+                  @if (processing()) {
+                    <span class="spinner-inline"></span> Processing…
+                  } @else if (retryCooldownSecondsLeft() > 0) {
+                    Retry available in {{ retryCooldownMinutes() }}:{{ retryCooldownSecondsPad() }}
+                  } @else if (!stripeReady()) {
+                    Loading payment system…
+                  } @else if (!cardElementReady()) {
+                    Preparing secure card form…
+                  } @else if (!bookingAmount()) {
+                    Loading booking…
+                  } @else {
+                    Pay \${{ bookingAmount() | number:'1.0-0' }} Securely 🔒
+                  }
+                </button>
               }
 
-              <div class="test-cards-info">
-                Your payment is processed securely with Stripe. Card details are encrypted and handled using bank-grade checkout controls.
-              </div>
-
-              <button
-                class="btn btn--primary pay-btn"
-                (click)="processCardPayment()"
-                [disabled]="processing() || retryCooldownSecondsLeft() > 0 || !stripeReady() || !cardElementReady() || !bookingAmount()"
-              >
-                @if (processing()) {
-                  <span class="spinner-inline"></span> Processing…
-                } @else if (retryCooldownSecondsLeft() > 0) {
-                  Retry available in {{ retryCooldownMinutes() }}:{{ retryCooldownSecondsPad() }}
-                } @else if (!stripeReady()) {
-                  Loading payment system…
-                } @else if (!cardElementReady()) {
-                  Preparing secure card form…
-                } @else if (!bookingAmount()) {
-                  Loading booking…
-                } @else {
-                  Pay \${{ bookingAmount() | number:'1.0-0' }} Securely 🔒
+              <!-- Razorpay Payment (shown for UPI/GPay/PhonePe) -->
+              @if (selectedPaymentMethod() !== 'card') {
+                @if (cardError()) {
+                  <div class="card-error">⚠️ {{ cardError() }}</div>
                 }
-              </button>
+
+                <div class="test-cards-info">
+                  Your payment is processed securely with Razorpay. You can pay via UPI, Google Pay, or PhonePe.
+                </div>
+
+                <button
+                  class="btn btn--primary pay-btn"
+                  (click)="payWithRazorpay(selectedPaymentMethod() as any)"
+                  [disabled]="processing() || !bookingAmount()"
+                >
+                  @if (processing()) {
+                    <span class="spinner-inline"></span> Processing…
+                  } @else if (!bookingAmount()) {
+                    Loading booking…
+                  } @else {
+                    Pay ₹{{ convertUSDToINR(bookingAmount()) | number:'1.0-0' }} with {{ getPaymentMethodLabel(selectedPaymentMethod()) }} 🔒
+                  }
+                </button>
+              }
 
               <div class="payment-actions">
                 <button class="btn btn--ghost" type="button" (click)="goBackToBooking()">Back to Booking Details</button>
@@ -813,6 +884,61 @@ interface PaymentErrorShape {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(34,211,238,0.3);
     }
+
+    /* Payment Methods */
+    .payment-methods {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .payment-method-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 2px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      color: var(--pf-text-muted);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .payment-method-btn:hover {
+      border-color: rgba(34, 211, 238, 0.3);
+      background: rgba(34, 211, 238, 0.05);
+      color: var(--pf-primary);
+    }
+
+    .payment-method-btn.active {
+      border-color: var(--pf-primary);
+      background: rgba(34, 211, 238, 0.12);
+      color: var(--pf-primary);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.08);
+    }
+
+    .payment-method-icon {
+      font-size: 24px;
+      display: block;
+    }
+
+    .payment-method-label {
+      display: block;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--pf-text-muted);
+      margin-bottom: 12px;
+    }
   `],
 })
 export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -831,6 +957,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   step = signal<PaymentStep>('details');
   uiState = signal<PaymentUiState>('idle');
   paymentMethod = signal<'mock' | 'card'>('card');
+  selectedPaymentMethod = signal<'card' | 'upi' | 'gpay' | 'phonepe'>('card');
   processing = signal(false);
   processingStepIdx = signal(-1);
   stripeReady = signal(false);
@@ -1208,6 +1335,128 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.queueCardMount();
     } catch {
       this.stripeReady.set(false);
+    }
+  }
+
+  // ─── Payment Method Selection ─────────────────────────────────────────────────
+
+  selectPaymentMethod(method: 'card' | 'upi' | 'gpay' | 'phonepe'): void {
+    this.selectedPaymentMethod.set(method);
+    this.cardError.set('');
+    if (method === 'card') {
+      this.initStripe();
+    }
+  }
+
+  getPaymentMethodLabel(method: string): string {
+    const labels: Record<string, string> = {
+      'card': 'Card',
+      'upi': 'UPI',
+      'gpay': 'Google Pay',
+      'phonepe': 'PhonePe'
+    };
+    return labels[method] || method;
+  }
+
+  convertUSDToINR(usd: number): number {
+    return Math.round(usd * 83);
+  }
+
+  // ─── Razorpay Payment ─────────────────────────────────────────────────────────
+
+  private loadRazorpayScript(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if ((window as any).Razorpay) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load Razorpay'));
+      document.body.appendChild(script);
+    });
+  }
+
+  async payWithRazorpay(method: 'upi' | 'gpay' | 'phonepe' | 'card'): Promise<void> {
+    try {
+      if (this.processing()) return;
+      if (!this.bookingAmount()) {
+        this.cardError.set('Booking details loading…');
+        return;
+      }
+
+      this.processing.set(true);
+      this.step.set('processing');
+      this.processingStepIdx.set(0);
+
+      await this.loadRazorpayScript();
+
+      this.processingStepIdx.set(1);
+      const order = await firstValueFrom(
+        this.paymentService.createRazorpayOrder(
+          this.bookingId(),
+          method,
+          this.idempotencyKey()
+        )
+      );
+
+      this.processingStepIdx.set(2);
+
+      const options = {
+        key: order.key_id,
+        amount: order.amount_paise,
+        currency: order.currency || 'INR',
+        order_id: order.order_id,
+        name: 'Stayvora',
+        description: 'Hotel Booking Payment',
+        prefill: {
+          method: method === 'gpay' ? 'upi' : method
+        },
+        theme: {
+          color: '#22d3ee'
+        },
+        handler: async (response: any) => {
+          try {
+            this.processingStepIdx.set(3);
+            await firstValueFrom(
+              this.paymentService.verifyRazorpayPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                transaction_ref: order.transaction_ref,
+              })
+            );
+
+            if (await this.verifyConfirmedPayment()) {
+              this.processing.set(false);
+              this.step.set('details');
+            } else {
+              this.cardError.set('Payment verification failed. Please check your booking status.');
+              this.processing.set(false);
+              this.step.set('details');
+            }
+          } catch (err) {
+            this.cardError.set('Payment verification failed. Please try again.');
+            this.processing.set(false);
+            this.step.set('details');
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            this.cardError.set('Payment cancelled by user.');
+            this.processing.set(false);
+            this.step.set('details');
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      this.cardError.set('Payment failed. Please try again.');
+      this.processing.set(false);
+      this.step.set('details');
     }
   }
 

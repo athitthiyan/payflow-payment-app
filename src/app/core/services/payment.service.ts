@@ -90,9 +90,20 @@ export class PaymentService {
     return this.http.get<PaymentStateResponse>(`${this.base}/status/${bookingId}`);
   }
 
-  getTransactions(status?: string, page = 1, perPage = 10): Observable<TransactionListResponse> {
-    let params = new HttpParams().set('page', page).set('per_page', perPage);
-    if (status) params = params.set('status', status);
-    return this.http.get<TransactionListResponse>(`${this.base}/transactions`, { params });
+  createRazorpayOrder(bookingId: number, paymentMethod: string, idempotencyKey?: string): Observable<any> {
+    return this.http.post<any>(`${this.base}/razorpay/create-order`, {
+      booking_id: bookingId,
+      payment_method: paymentMethod,
+      ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+    });
+  }
+
+  verifyRazorpayPayment(data: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+    transaction_ref: string;
+  }): Observable<any> {
+    return this.http.post<any>(`${this.base}/razorpay/verify-payment`, data);
   }
 }
