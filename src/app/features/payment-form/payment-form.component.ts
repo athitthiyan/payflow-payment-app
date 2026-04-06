@@ -15,7 +15,7 @@ import { HttpClient } from '@angular/common/http';
 import { loadStripe, Stripe, StripeCardElement } from '@stripe/stripe-js';
 import { firstValueFrom } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import { PaymentService } from '../../core/services/payment.service';
+import { PaymentCooldownDetail, PaymentService } from '../../core/services/payment.service';
 import { environment } from '../../../environments/environment';
 
 type PaymentStep = 'details' | 'processing';
@@ -44,7 +44,7 @@ interface PaymentErrorShape {
   status?: number;
   name?: string;
   error?: {
-    detail?: string;
+    detail?: string | PaymentCooldownDetail;
   };
 }
 
@@ -64,6 +64,7 @@ interface PaymentErrorShape {
 
         <!-- Left: Payment Form -->
         <div class="payment-form-wrap">
+          <button class="back-link" type="button" (click)="goBackToBooking()">← Back to Booking</button>
 
           <!-- Hold timer banner (shown whenever hold is active and not yet succeeded) -->
           @if (holdSecondsLeft() > 0 && uiState() !== 'success') {
@@ -100,8 +101,10 @@ interface PaymentErrorShape {
                 <span>⚠️</span>
                 <div>
                   <p>{{ cardError() }}</p>
-                  @if (retryCount() >= maxRetries) {
-                    <p class="retry-limit">Maximum retry attempts reached. Please contact support or try a different payment method.</p>
+                  @if (retryCooldownSecondsLeft() > 0) {
+                    <p class="retry-limit">Retry available in {{ retryCooldownMinutes() }}:{{ retryCooldownSecondsPad() }}. Your booking hold remains active while the timer runs.</p>
+                  } @else if (retryCount() >= maxRetries) {
+                    <p class="retry-limit">Payment retries are paused for security. Please try another card or retry after the countdown.</p>
                   }
                 </div>
               </div>
@@ -157,10 +160,12 @@ interface PaymentErrorShape {
               <button
                 class="btn btn--primary pay-btn"
                 (click)="processCardPayment()"
-                [disabled]="processing() || !stripeReady() || !cardElementReady() || !bookingAmount()"
+                [disabled]="processing() || retryCooldownSecondsLeft() > 0 || !stripeReady() || !cardElementReady() || !bookingAmount()"
               >
                 @if (processing()) {
                   <span class="spinner-inline"></span> Processing…
+                } @else if (retryCooldownSecondsLeft() > 0) {
+                  Retry available in {{ retryCooldownMinutes() }}:{{ retryCooldownSecondsPad() }}
                 } @else if (!stripeReady()) {
                   Loading payment system…
                 } @else if (!cardElementReady()) {
@@ -171,6 +176,16 @@ interface PaymentErrorShape {
                   Pay \${{ bookingAmount() | number:'1.0-0' }} Securely 🔒
                 }
               </button>
+
+              <div class="payment-actions">
+                <button class="btn btn--ghost" type="button" (click)="goBackToBooking()">Back to Booking Details</button>
+                <button class="btn btn--danger" type="button" (click)="cancelBooking()" [disabled]="processing() || cancellingBooking()">
+                  {{ cancellingBooking() ? 'Cancelling…' : 'Cancel Booking' }}
+                </button>
+              </div>
+              @if (actionMessage()) {
+                <div class="action-message action-message--success">{{ actionMessage() }}</div>
+              }
             </div>
 
             <!-- Trust Footer -->
@@ -342,6 +357,26 @@ interface PaymentErrorShape {
     /* Header */
     .pf-header { margin-bottom: 32px; animation: fadeInUp 0.5s ease; }
 
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--pf-text-muted);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: color 0.2s, transform 0.2s;
+    }
+
+    .back-link:hover {
+      color: var(--pf-primary);
+      transform: translateX(-2px);
+    }
+
     .pf-header__badge {
       display: inline-flex;
       align-items: center;
@@ -445,6 +480,57 @@ interface PaymentErrorShape {
     }
 
     .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .payment-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .btn--ghost,
+    .btn--danger {
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+    }
+
+    .btn--ghost {
+      border: 1px solid rgba(34,211,238,0.28);
+      background: rgba(34,211,238,0.06);
+      color: var(--pf-primary);
+    }
+
+    .btn--danger {
+      border: 1px solid rgba(248,113,113,0.35);
+      background: rgba(239,68,68,0.08);
+      color: #fca5a5;
+    }
+
+    .btn--danger:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .action-message {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .action-message--success {
+      background: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.22);
+      color: #86efac;
+    }
+
+    @media (max-width: 640px) {
+      .payment-actions { grid-template-columns: 1fr; }
+    }
 
     /* Trust */
     .pf-trust {
@@ -752,7 +838,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // Retry state
   retryCount = signal(0);
-  readonly maxRetries = 3;
+  readonly maxRetries = 5;
+  retryCooldownSecondsLeft = signal(0);
+  private retryCooldownInterval: ReturnType<typeof setInterval> | null = null;
 
   // Hold countdown
   holdSecondsLeft = signal(0);
@@ -769,6 +857,8 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   bookingAmount = signal(0);
   bookingLoadError = signal('');
   cardError = signal('');
+  actionMessage = signal('');
+  cancellingBooking = signal(false);
 
   cardholderName = '';
 
@@ -800,6 +890,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cardElementReady.set(false);
     this.cardElement?.destroy();
     this.stopHoldCountdown();
+    this.stopRetryCooldown();
   }
 
   // ─── Booking ────────────────────────────────────────────────────────────────
@@ -832,6 +923,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
             if (b.payment_status === 'failed') {
               this.uiState.set('failed_retry');
               this.cardError.set('Your previous payment failed. Please try a different card.');
+              this.refreshRetryPolicy(id);
             }
           } else {
             this.uiState.set('expired');
@@ -883,6 +975,101 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       clearInterval(this.holdCountdownInterval);
       this.holdCountdownInterval = null;
     }
+  }
+
+  retryCooldownMinutes = () => String(Math.floor(this.retryCooldownSecondsLeft() / 60)).padStart(2, '0');
+  retryCooldownSecondsPad = () => String(this.retryCooldownSecondsLeft() % 60).padStart(2, '0');
+
+  private startRetryCooldown(seconds: number): void {
+    this.stopRetryCooldown();
+    const endTime = Date.now() + Math.max(0, seconds) * 1000;
+    const tick = () => {
+      const secs = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      this.retryCooldownSecondsLeft.set(secs);
+      if (secs === 0) {
+        this.stopRetryCooldown();
+        this.retryCount.set(0);
+        if (this.uiState() === 'failed_retry') {
+          this.cardError.set('Retry is available now. You can try another card while the room hold is active.');
+        }
+      }
+    };
+    tick();
+    this.retryCooldownInterval = setInterval(tick, 1000);
+  }
+
+  private stopRetryCooldown(): void {
+    if (this.retryCooldownInterval) {
+      clearInterval(this.retryCooldownInterval);
+      this.retryCooldownInterval = null;
+    }
+  }
+
+  private applyRetryCooldown(detail?: PaymentCooldownDetail): void {
+    const retryAfterSeconds = detail?.retry_after_seconds ?? 0;
+    if (detail?.failed_payment_count) {
+      this.retryCount.set(detail.failed_payment_count);
+    }
+    if (retryAfterSeconds > 0) {
+      this.startRetryCooldown(retryAfterSeconds);
+      this.uiState.set('failed_retry');
+      this.cardError.set(
+        `${detail?.message || 'Payment temporarily paused for security.'} Retry available in ${this.retryCooldownMinutes()}:${this.retryCooldownSecondsPad()}. Try another card when retry opens, or cancel this booking.`
+      );
+    }
+  }
+
+  private refreshRetryPolicy(bookingId: number): void {
+    this.paymentService.getPaymentStatus(bookingId).subscribe({
+      next: status => {
+        this.applyRetryCooldown({
+          failed_payment_count: status.failed_payment_count,
+          retry_after_seconds: status.retry_after_seconds,
+          retry_available_at: status.retry_available_at,
+        });
+      },
+      error: () => {
+        // Retry policy is advisory only; the payment attempt will still be guarded by the backend.
+      },
+    });
+  }
+
+  goBackToBooking(): void {
+    const bookingId = this.bookingId();
+    if (bookingId > 0) {
+      this.externalRedirect(`${this.bookingAppUrl.replace(/\/$/, '')}/checkout/${bookingId}`);
+      return;
+    }
+    this.externalRedirect(this.bookingAppUrl);
+  }
+
+  cancelBooking(): void {
+    const bookingId = this.bookingId();
+    if (!bookingId || this.cancellingBooking() || this.processing()) return;
+    this.actionMessage.set('');
+    this.cancellingBooking.set(true);
+    this.http.patch<PaymentBookingSummary>(`${environment.apiUrl}/bookings/${bookingId}/cancel`, {}).subscribe({
+      next: () => {
+        this.cancellingBooking.set(false);
+        this.stopHoldCountdown();
+        this.stopRetryCooldown();
+        this.holdSecondsLeft.set(0);
+        this.retryCooldownSecondsLeft.set(0);
+        this.uiState.set('expired');
+        this.actionMessage.set('Booking cancelled successfully. Your room hold has been released.');
+        setTimeout(() => {
+          this.externalRedirect(this.bookingAppUrl);
+        }, 900);
+      },
+      error: () => {
+        this.cancellingBooking.set(false);
+        this.cardError.set('Could not cancel this booking right now. Please try again.');
+      },
+    });
+  }
+
+  private externalRedirect(url: string): void {
+    window.location.href = url;
   }
 
   private mountCardElement(): void {
@@ -1092,8 +1279,14 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cardError.set('Card form still initializing. Please wait.');
       return;
     }
+    if (this.retryCooldownSecondsLeft() > 0) {
+      this.cardError.set(`Retry available in ${this.retryCooldownMinutes()}:${this.retryCooldownSecondsPad()}. Your room hold is still active.`);
+      return;
+    }
     if (this.retryCount() >= this.maxRetries) {
-      this.cardError.set('Maximum retry attempts reached. Please contact support.');
+      this.startRetryCooldown(5 * 60);
+      this.uiState.set('failed_retry');
+      this.cardError.set(`Payment temporarily paused for security. Retry available in ${this.retryCooldownMinutes()}:${this.retryCooldownSecondsPad()}.`);
       return;
     }
 
@@ -1122,8 +1315,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
       if (error) {
         // Record decline in backend — inventory stays locked if hold still valid (backend fix)
+        let backendRetryPolicy: PaymentCooldownDetail | undefined;
         try {
-          await firstValueFrom(
+          backendRetryPolicy = await firstValueFrom(
             this.paymentService.recordFailure(
               this.bookingId(),
               error.message || 'Card declined',
@@ -1137,15 +1331,22 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         }
 
         this.retryCount.update(n => n + 1);
+        if (backendRetryPolicy?.retry_after_seconds) {
+          this.applyRetryCooldown(backendRetryPolicy);
+        } else if (this.retryCount() >= this.maxRetries) {
+          this.startRetryCooldown(5 * 60);
+        }
         this.idempotencyKey.set(this.generateIdempotencyKey()); // fresh key for next attempt
         this.uiState.set('failed_retry');
         this.restoreCardEntry();
         const holdInfo = this.holdSecondsLeft() > 0
           ? ` Your room is reserved for ${this.holdMinutes()}:${this.holdSecondsPad()}.`
           : '';
-        this.cardError.set(
-          `${error.message || 'Payment failed.'}${holdInfo} Please try a different card.`
-        );
+        if (this.retryCooldownSecondsLeft() === 0) {
+          this.cardError.set(
+            `${error.message || 'Payment failed.'}${holdInfo} Please try a different card.`
+          );
+        }
         this.cardholderName = '';
         return;
       }
@@ -1186,19 +1387,20 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       const paymentError = err as PaymentErrorShape;
       const status = paymentError.status;
       const detail = paymentError.error?.detail || '';
+      const detailMessage = typeof detail === 'string' ? detail : detail.message || '';
 
       if (
         status === 409 &&
         (
-          detail.toLowerCase().includes('unavailable') ||
-          detail.toLowerCase().includes('available') ||
-          detail.toLowerCase().includes('reserved') ||
-          detail.toLowerCase().includes('expired')
+          detailMessage.toLowerCase().includes('unavailable') ||
+          detailMessage.toLowerCase().includes('available') ||
+          detailMessage.toLowerCase().includes('reserved') ||
+          detailMessage.toLowerCase().includes('expired')
         )
       ) {
         this.uiState.set('conflict');
-        this.cardError.set(detail || 'These dates are no longer available. Please go back and select new dates.');
-      } else if (status === 409 && detail.toLowerCase().includes('already paid')) {
+        this.cardError.set(detailMessage || 'These dates are no longer available. Please go back and select new dates.');
+      } else if (status === 409 && detailMessage.toLowerCase().includes('already paid')) {
         if (!(await this.verifyConfirmedPayment())) {
           this.uiState.set('failed_retry');
           this.restoreCardEntry();
@@ -1210,10 +1412,13 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.uiState.set('failed_retry');
         this.restoreCardEntry();
         this.cardError.set('Payment timed out. Please try again.');
+      } else if (status === 429 && typeof detail !== 'string') {
+        this.restoreCardEntry();
+        this.applyRetryCooldown(detail);
       } else {
         this.uiState.set('failed_retry');
         this.restoreCardEntry();
-        this.cardError.set(detail || 'Payment failed. Please try again.');
+        this.cardError.set(detailMessage || 'Payment failed. Please try again.');
       }
     } finally {
       this.processing.set(false); // ← ALWAYS resets — prevents UI freeze on any exception

@@ -28,7 +28,11 @@ interface PaymentFormComponentPrivateState {
   queueCardMount: () => void;
   verifyConfirmedPayment: () => Promise<boolean>;
   startHoldCountdown: (holdExpiresAt: string) => void;
+  startRetryCooldown: (seconds: number) => void;
+  applyRetryCooldown: (detail?: { message?: string; failed_payment_count?: number; retry_after_seconds?: number }) => void;
+  refreshRetryPolicy: (bookingId: number) => void;
   navigateToSuccess: (ref: string, amount: number, bookingRef?: string) => void;
+  externalRedirect: (url: string) => void;
 }
 
 interface MountRefLike {
@@ -649,7 +653,7 @@ describe('PaymentFormComponent', () => {
     expect(component.holdSecondsLeft()).toBeLessThanOrEqual(300);
   });
 
-  it('limits retries to maxRetries and shows limit message', async () => {
+  it('pauses retries with a cooldown after maxRetries', async () => {
     const { component } = createComponent();
     setupReadyComponent(component);
 
@@ -658,9 +662,147 @@ describe('PaymentFormComponent', () => {
 
     await component.processCardPayment();
 
-    // Should block further retries and set appropriate error
     expect(paymentService.createPaymentIntent).not.toHaveBeenCalled();
-    expect(component.cardError()).toContain('Maximum retry attempts');
+    expect(component.cardError()).toContain('Payment temporarily paused');
+    expect(component.retryCooldownSecondsLeft()).toBeGreaterThan(0);
+  });
+
+  it('blocks payment attempts while retry cooldown is active', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+    component.retryCooldownSecondsLeft.set(75);
+
+    await component.processCardPayment();
+
+    expect(paymentService.createPaymentIntent).not.toHaveBeenCalled();
+    expect(component.cardError()).toContain('Retry available in 01:15');
+  });
+
+  it('clears retry cooldown and resets retry count when the countdown ends', async () => {
+    const { component } = createComponent();
+    component.retryCount.set(5);
+    component.uiState.set('failed_retry');
+
+    (component as unknown as PaymentFormComponentPrivateState).startRetryCooldown(1);
+    await jest.advanceTimersByTimeAsync(1100);
+
+    expect(component.retryCooldownSecondsLeft()).toBe(0);
+    expect(component.retryCount()).toBe(0);
+    expect(component.cardError()).toContain('Retry is available now');
+  });
+
+  it('applies backend retry cooldown policy and ignores empty cooldown payloads', () => {
+    const { component } = createComponent();
+    const privateComponent = component as unknown as PaymentFormComponentPrivateState;
+
+    privateComponent.applyRetryCooldown();
+    expect(component.retryCooldownSecondsLeft()).toBe(0);
+
+    privateComponent.applyRetryCooldown({
+      message: 'Payment temporarily paused for security.',
+      failed_payment_count: 5,
+      retry_after_seconds: 120,
+    });
+
+    expect(component.retryCount()).toBe(5);
+    expect(component.retryCooldownSecondsLeft()).toBe(120);
+    expect(component.cardError()).toContain('Retry available in 02:00');
+  });
+
+  it('refreshes retry policy from payment status after restoring a failed booking', () => {
+    const { component } = createComponent();
+    paymentService.getPaymentStatus.mockReturnValue(of({
+      failed_payment_count: 5,
+      retry_after_seconds: 180,
+      retry_available_at: '2026-04-06T12:00:00Z',
+    }));
+
+    (component as unknown as PaymentFormComponentPrivateState).refreshRetryPolicy(7);
+
+    expect(paymentService.getPaymentStatus).toHaveBeenCalledWith(7);
+    expect(component.retryCooldownSecondsLeft()).toBe(180);
+  });
+
+  it('continues when retry policy refresh fails', () => {
+    const { component } = createComponent();
+    paymentService.getPaymentStatus.mockReturnValue(throwError(() => new Error('offline')));
+
+    (component as unknown as PaymentFormComponentPrivateState).refreshRetryPolicy(7);
+
+    expect(component.retryCooldownSecondsLeft()).toBe(0);
+  });
+
+  it('navigates back to booking details without cancelling the hold', () => {
+    const { component } = createComponent();
+    const redirectSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'externalRedirect').mockImplementation();
+    component.bookingId.set(7);
+
+    component.goBackToBooking();
+
+    expect(redirectSpy).toHaveBeenCalledWith(`${environment.bookingAppUrl.replace(/\/$/, '')}/checkout/7`);
+  });
+
+  it('navigates back home when booking id is unavailable', () => {
+    const { component } = createComponent();
+    const redirectSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'externalRedirect').mockImplementation();
+    component.bookingId.set(0);
+
+    component.goBackToBooking();
+
+    expect(redirectSpy).toHaveBeenCalledWith(environment.bookingAppUrl);
+  });
+
+  it('performs external redirects through the browser location', () => {
+    const { component } = createComponent();
+    const hashUrl = `${window.location.href.split('#')[0]}#stayvora-payment-return`;
+
+    (component as unknown as PaymentFormComponentPrivateState).externalRedirect(hashUrl);
+
+    expect(window.location.href).toBe(hashUrl);
+  });
+
+  it('cancels a booking hold from the payment page and redirects home', async () => {
+    const { component } = createComponent();
+    const redirectSpy = jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'externalRedirect').mockImplementation();
+    component.bookingId.set(7);
+    component.holdSecondsLeft.set(120);
+    (component as unknown as PaymentFormComponentPrivateState).startRetryCooldown(60);
+
+    component.cancelBooking();
+    const req = httpMock.expectOne(`${environment.apiUrl}/bookings/7/cancel`);
+    expect(req.request.method).toBe('PATCH');
+    req.flush({ booking_ref: 'BK123', total_amount: 300, payment_status: 'cancelled', check_in: '', check_out: '', nights: 1 });
+    await jest.advanceTimersByTimeAsync(950);
+
+    expect(component.actionMessage()).toContain('Booking cancelled successfully');
+    expect(component.holdSecondsLeft()).toBe(0);
+    expect(component.retryCooldownSecondsLeft()).toBe(0);
+    expect(redirectSpy).toHaveBeenCalledWith(environment.bookingAppUrl);
+  });
+
+  it('surfaces cancel booking errors and ignores unsafe cancel attempts', () => {
+    const { component } = createComponent();
+
+    component.cancelBooking();
+    httpMock.expectNone(`${environment.apiUrl}/bookings/0/cancel`);
+
+    component.bookingId.set(7);
+    component.processing.set(true);
+    component.cancelBooking();
+    httpMock.expectNone(`${environment.apiUrl}/bookings/7/cancel`);
+
+    component.processing.set(false);
+    component.cancellingBooking.set(true);
+    component.cancelBooking();
+    httpMock.expectNone(`${environment.apiUrl}/bookings/7/cancel`);
+
+    component.cancellingBooking.set(false);
+    component.cancelBooking();
+    const req = httpMock.expectOne(`${environment.apiUrl}/bookings/7/cancel`);
+    req.flush({ detail: 'boom' }, { status: 500, statusText: 'Server Error' });
+
+    expect(component.cardError()).toContain('Could not cancel');
+    expect(component.cancellingBooking()).toBe(false);
   });
 
   it('returns early from mock payment when booking details are incomplete', () => {
@@ -1074,6 +1216,104 @@ describe('PaymentFormComponent', () => {
 
     expect(component.uiState()).toBe('failed_retry');
     expect(component.cardError()).toContain('Declined again');
+  });
+
+  it('uses backend retry cooldown after a declined payment is recorded', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({
+        client_secret: 'cs_test_125',
+        payment_intent_id: 'pi_declined_004',
+        transaction_ref: 'TXN-DECLINED-004',
+      }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined with cooldown' } });
+    paymentService.recordFailure.mockReturnValue(of({
+      message: 'Payment failure recorded',
+      failed_payment_count: 5,
+      retry_after_seconds: 240,
+    }));
+
+    const promise = component.processCardPayment();
+    await jest.advanceTimersByTimeAsync(3200);
+    await promise;
+
+    expect(component.retryCooldownSecondsLeft()).toBeGreaterThan(0);
+    expect(component.cardError()).toContain('Retry available in');
+    expect(component.cardError()).not.toContain('Declined with cooldown');
+  });
+
+  it('starts a local cooldown when the fifth declined payment has no backend cooldown payload', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+    component.retryCount.set(component.maxRetries - 1);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      of({
+        client_secret: 'cs_test_126',
+        payment_intent_id: 'pi_declined_005',
+        transaction_ref: 'TXN-DECLINED-005',
+      }),
+    );
+    mockConfirmCardPayment.mockResolvedValue({ error: { message: 'Declined final retry' } });
+    paymentService.recordFailure.mockReturnValue(of({ message: 'Payment failure recorded' }));
+
+    const promise = component.processCardPayment();
+    await jest.advanceTimersByTimeAsync(3200);
+    await promise;
+
+    expect(component.retryCooldownSecondsLeft()).toBeGreaterThan(0);
+    expect(component.cardError()).toBe('');
+  });
+
+  it('shows backend 429 retry cooldown payload from create intent', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 429,
+        error: {
+          detail: {
+            message: 'Payment temporarily paused for security.',
+            failed_payment_count: 5,
+            retry_after_seconds: 90,
+          },
+        },
+      })),
+    );
+
+    const promise = component.processCardPayment();
+    await promise;
+
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.retryCooldownSecondsLeft()).toBe(90);
+    expect(component.cardError()).toContain('Retry available in 01:30');
+  });
+
+  it('uses default cooldown message when backend 429 payload omits a message', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 429,
+        error: {
+          detail: {
+            failed_payment_count: 5,
+            retry_after_seconds: 45,
+          },
+        },
+      })),
+    );
+
+    const promise = component.processCardPayment();
+    await promise;
+
+    expect(component.cardError()).toContain('Payment temporarily paused for security.');
+    expect(component.cardError()).toContain('00:45');
   });
 
   it('falls back to the default conflict message when a conflict detail is empty', async () => {

@@ -12,6 +12,9 @@ interface PaymentIntentResponse {
   client_secret: string;
   payment_intent_id?: string;
   transaction_ref?: string;
+  retry_after_seconds?: number;
+  failed_payment_count?: number;
+  retry_available_at?: string | null;
 }
 
 interface ExtendHoldResponse {
@@ -25,6 +28,18 @@ interface PaymentFailureResponse {
   reason?: string;
   payment_intent_id?: string;
   transaction_ref?: string;
+  failed_payment_count?: number;
+  retry_after_seconds?: number;
+  retry_available_at?: string | null;
+}
+
+export interface PaymentCooldownDetail {
+  code?: string;
+  message?: string;
+  blocked?: boolean;
+  failed_payment_count?: number;
+  retry_after_seconds?: number;
+  retry_available_at?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
