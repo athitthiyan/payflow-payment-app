@@ -21,6 +21,27 @@ import { environment } from '../../../environments/environment';
 type PaymentStep = 'details' | 'processing';
 type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expired' | 'conflict';
 
+interface RazorpayResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpayResponse) => void | Promise<void>;
+  prefill?: { name?: string; email?: string; contact?: string; method?: string };
+  theme?: { color?: string };
+  modal?: { ondismiss?: () => void };
+}
+
+declare const Razorpay: new (options: RazorpayOptions) => { open(): void };
+
 interface PaymentRoomSummary {
   hotel_name?: string;
   image_url?: string;
@@ -235,7 +256,7 @@ interface PaymentErrorShape {
 
                 <button
                   class="btn btn--primary pay-btn"
-                  (click)="payWithRazorpay(selectedPaymentMethod() as any)"
+                  (click)="payWithRazorpay(selectedPaymentMethod())"
                   [disabled]="processing() || !bookingAmount()"
                 >
                   @if (processing()) {
@@ -1366,7 +1387,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private loadRazorpayScript(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if ((window as any).Razorpay) {
+      if ((window as unknown as { Razorpay?: unknown }).Razorpay) {
         resolve();
         return;
       }
@@ -1416,7 +1437,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         theme: {
           color: '#22d3ee'
         },
-        handler: async (response: any) => {
+        handler: async (response: RazorpayResponse) => {
           try {
             this.processingStepIdx.set(3);
             await firstValueFrom(
@@ -1436,7 +1457,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
               this.processing.set(false);
               this.step.set('details');
             }
-          } catch (err) {
+          } catch (err: unknown) {
             this.cardError.set('Payment verification failed. Please try again.');
             this.processing.set(false);
             this.step.set('details');
@@ -1451,9 +1472,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         }
       };
 
-      const rzp = new (window as any).Razorpay(options);
+      const rzp = new Razorpay(options as RazorpayOptions);
       rzp.open();
-    } catch (err: any) {
+    } catch (err: unknown) {
       this.cardError.set('Payment failed. Please try again.');
       this.processing.set(false);
       this.step.set('details');

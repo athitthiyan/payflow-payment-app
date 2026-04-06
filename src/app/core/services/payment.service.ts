@@ -42,6 +42,22 @@ export interface PaymentCooldownDetail {
   retry_available_at?: string | null;
 }
 
+export interface RazorpayOrderResponse {
+  order_id: string;
+  amount: number;
+  currency: string;
+  booking_id: number;
+  key_id?: string;
+  amount_paise?: number;
+  transaction_ref?: string;
+}
+
+export interface RazorpayVerifyResponse {
+  status: string;
+  booking_id: number;
+  message?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
   private http = inject(HttpClient);
@@ -90,8 +106,8 @@ export class PaymentService {
     return this.http.get<PaymentStateResponse>(`${this.base}/status/${bookingId}`);
   }
 
-  createRazorpayOrder(bookingId: number, paymentMethod: string, idempotencyKey?: string): Observable<any> {
-    return this.http.post<any>(`${this.base}/razorpay/create-order`, {
+  createRazorpayOrder(bookingId: number, paymentMethod: string, idempotencyKey?: string): Observable<RazorpayOrderResponse> {
+    return this.http.post<RazorpayOrderResponse>(`${this.base}/razorpay/create-order`, {
       booking_id: bookingId,
       payment_method: paymentMethod,
       ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
@@ -103,7 +119,7 @@ export class PaymentService {
     razorpay_payment_id: string;
     razorpay_signature: string;
     transaction_ref: string;
-  }): Observable<any> {
-    return this.http.post<any>(`${this.base}/razorpay/verify-payment`, data);
+  }): Observable<RazorpayVerifyResponse> {
+    return this.http.post<RazorpayVerifyResponse>(`${this.base}/razorpay/verify-payment`, data);
   }
 }
