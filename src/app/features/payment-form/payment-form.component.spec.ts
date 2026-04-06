@@ -722,6 +722,7 @@ describe('PaymentFormComponent', () => {
       of({
         transaction_ref: 'TXN-ABCDEF123456',
         amount: 300,
+        status: 'success',
         booking: { booking_ref: 'BK123' },
       })
     );
@@ -739,6 +740,68 @@ describe('PaymentFormComponent', () => {
     );
     expect(navigateSpy).toHaveBeenCalled();
     expect(component.uiState()).toBe('success');
+    expect(component.processing()).toBe(false);
+  });
+
+  it('waits for backend confirmation before navigating when card payment response is still processing', async () => {
+    const { component } = createComponent();
+    const verifySpy = jest
+      .spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment')
+      .mockResolvedValue(true);
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(of({ client_secret: 'cs_test' }));
+    mockConfirmCardPayment.mockResolvedValue({
+      paymentIntent: { status: 'succeeded', id: 'pi_test_WAIT123456' },
+    });
+    paymentService.confirmPayment.mockReturnValue(
+      of({
+        transaction_ref: 'TXN-WAIT123456',
+        amount: 300,
+        status: 'processing',
+        booking: { booking_ref: 'BK123' },
+      }),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(verifySpy).toHaveBeenCalled();
+    expect(component.uiState()).toBe('success');
+    expect(component.processing()).toBe(false);
+  });
+
+  it('returns to retry state when card payment confirmation remains processing', async () => {
+    const { component } = createComponent();
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    const verifySpy = jest
+      .spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment')
+      .mockResolvedValue(false);
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(of({ client_secret: 'cs_test' }));
+    mockConfirmCardPayment.mockResolvedValue({
+      paymentIntent: { status: 'succeeded', id: 'pi_test_STILLPROC1' },
+    });
+    paymentService.confirmPayment.mockReturnValue(
+      of({
+        transaction_ref: 'TXN-STILLPROC1',
+        amount: 300,
+        status: 'processing',
+        booking: { booking_ref: 'BK123' },
+      }),
+    );
+
+    const p = component.processCardPayment();
+    await jest.runAllTimersAsync();
+    await p;
+
+    expect(verifySpy).toHaveBeenCalled();
+    expect(component.uiState()).toBe('failed_retry');
+    expect(component.cardError()).toContain('still syncing');
+    expect(navigateSpy).not.toHaveBeenCalled();
     expect(component.processing()).toBe(false);
   });
 

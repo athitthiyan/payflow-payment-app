@@ -1295,8 +1295,26 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
             payment_method: 'card',
           }).pipe(timeout(15_000))
         );
-        this.uiState.set('success');
-        this.navigateToSuccess(transaction.transaction_ref, transaction.amount, transaction.booking?.booking_ref);
+        if (transaction.status === 'success') {
+          this.uiState.set('success');
+          this.navigateToSuccess(
+            transaction.transaction_ref,
+            transaction.amount,
+            transaction.booking?.booking_ref,
+          );
+          return;
+        }
+
+        if (await this.verifyConfirmedPayment()) {
+          this.uiState.set('success');
+          return;
+        }
+
+        this.uiState.set('failed_retry');
+        this.restoreCardEntry();
+        this.cardError.set(
+          'Payment confirmation is still syncing. Please wait a moment and check your booking again.',
+        );
       }
 
     } catch (err: unknown) {
