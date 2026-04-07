@@ -40,7 +40,21 @@ interface RazorpayOptions {
   modal?: { ondismiss?: () => void };
 }
 
-declare const Razorpay: new (options: RazorpayOptions) => { open(): void };
+interface RazorpayFailedResponse {
+  error: {
+    code?: string;
+    description?: string;
+    source?: string;
+    step?: string;
+    reason?: string;
+    metadata?: { order_id?: string; payment_id?: string };
+  };
+}
+
+declare const Razorpay: new (options: RazorpayOptions) => {
+  open(): void;
+  on(event: string, callback: (response: RazorpayFailedResponse) => void): void;
+};
 
 interface PaymentRoomSummary {
   hotel_name?: string;
@@ -152,15 +166,17 @@ interface PaymentErrorShape {
               <div class="form-group">
                 <p class="form-label">Payment Method</p>
                 <div class="payment-methods">
-                  <button
-                    class="payment-method-btn"
-                    [class.active]="selectedPaymentMethod() === 'card'"
-                    (click)="selectPaymentMethod('card')"
-                    type="button"
-                  >
-                    <span class="payment-method-icon">💳</span>
-                    <span class="payment-method-label">Card</span>
-                  </button>
+                  @if (stripeEnabled) {
+                    <button
+                      class="payment-method-btn"
+                      [class.active]="selectedPaymentMethod() === 'card'"
+                      (click)="selectPaymentMethod('card')"
+                      type="button"
+                    >
+                      <span class="payment-method-icon">💳</span>
+                      <span class="payment-method-label">Card</span>
+                    </button>
+                  }
                   <button
                     class="payment-method-btn"
                     [class.active]="selectedPaymentMethod() === 'upi'"
@@ -191,8 +207,8 @@ interface PaymentErrorShape {
                 </div>
               </div>
 
-              <!-- Stripe Card Form (shown only for card payment) -->
-              @if (selectedPaymentMethod() === 'card') {
+              <!-- Stripe Card Form (shown only when Stripe is enabled and card is selected) -->
+              @if (stripeEnabled && selectedPaymentMethod() === 'card') {
                 <div class="form-group">
                   <label for="cardholder-name">Cardholder Name</label>
                   <input
@@ -257,24 +273,23 @@ interface PaymentErrorShape {
                 <button
                   class="btn btn--primary pay-btn"
                   (click)="payWithRazorpay(selectedPaymentMethod())"
-                  [disabled]="processing() || !bookingAmount()"
+                  [disabled]="processing() || retryCooldownSecondsLeft() > 0 || !bookingAmount() || holdSecondsLeft() <= 0"
                 >
                   @if (processing()) {
                     <span class="spinner-inline"></span> Processing…
+                  } @else if (retryCooldownSecondsLeft() > 0) {
+                    Retry available in {{ retryCooldownMinutes() }}:{{ retryCooldownSecondsPad() }}
                   } @else if (!bookingAmount()) {
                     Loading booking…
+                  } @else if (holdSecondsLeft() <= 0) {
+                    Booking hold expired
                   } @else {
                     Pay ₹{{ convertUSDToINR(bookingAmount()) | number:'1.0-0' }} with {{ getPaymentMethodLabel(selectedPaymentMethod()) }} 🔒
                   }
                 </button>
               }
 
-              <div class="payment-actions">
-                <button class="btn btn--ghost" type="button" (click)="goBackToBooking()">Back to Booking Details</button>
-                <button class="btn btn--danger" type="button" (click)="cancelBooking()" [disabled]="processing() || cancellingBooking()">
-                  {{ cancellingBooking() ? 'Cancelling…' : 'Cancel Booking' }}
-                </button>
-              </div>
+              <!-- Actions removed — user completes or abandons via booking app -->
               @if (actionMessage()) {
                 <div class="action-message action-message--success">{{ actionMessage() }}</div>
               }
@@ -977,8 +992,15 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   // Component state
   step = signal<PaymentStep>('details');
   uiState = signal<PaymentUiState>('idle');
+  // Expose feature toggle to the template.
+  // Controlled via environment.stripeEnabled — no code change needed to flip it.
+  readonly stripeEnabled = environment.stripeEnabled;
+
   paymentMethod = signal<'mock' | 'card'>('card');
-  selectedPaymentMethod = signal<'card' | 'upi' | 'gpay' | 'phonepe'>('card');
+  // When Stripe is disabled, default to UPI so users land on Razorpay immediately
+  selectedPaymentMethod = signal<'card' | 'upi' | 'gpay' | 'phonepe'>(
+    environment.stripeEnabled ? 'card' : 'upi'
+  );
   processing = signal(false);
   processingStepIdx = signal(-1);
   stripeReady = signal(false);
@@ -1019,7 +1041,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     { label: 'Confirming booking' },
   ];
 
-  // ─── Lifecycle ──────────────────────────────────────────────────────────────
+  // --- Lifecycle ---
 
   ngOnInit() {
     const id = this.route.snapshot.queryParamMap.get('booking_id');
@@ -1030,8 +1052,12 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit() {
-    // Initialize Stripe Elements after view is ready
-    this.initStripe();
+    // Only initialize Stripe when the feature toggle is enabled.
+    // Set stripeEnabled: false in environment.production.ts to keep Stripe
+    // dormant without any code changes or re-deploys.
+    if (environment.stripeEnabled) {
+      this.initStripe();
+    }
   }
 
   ngOnDestroy() {
@@ -1041,7 +1067,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.stopRetryCooldown();
   }
 
-  // ─── Booking ────────────────────────────────────────────────────────────────
+  // --- Booking ---
 
   loadBooking(id: number) {
     this.bookingLoadError.set('');
@@ -1091,7 +1117,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.bookingId()) this.loadBooking(this.bookingId());
   }
 
-  // ─── Hold Countdown ──────────────────────────────────────────────────────────
+  // --- Hold Countdown ---
 
   private generateIdempotencyKey(): string {
     return `pay_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -1344,7 +1370,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     return false;
   }
 
-  // ─── Stripe Setup ────────────────────────────────────────────────────────────
+  // --- Stripe Setup ---
 
   private async initStripe() {
     try {
@@ -1359,12 +1385,12 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // ─── Payment Method Selection ─────────────────────────────────────────────────
+  // --- Payment Method Selection ---
 
   selectPaymentMethod(method: 'card' | 'upi' | 'gpay' | 'phonepe'): void {
     this.selectedPaymentMethod.set(method);
     this.cardError.set('');
-    if (method === 'card') {
+    if (method === 'card' && environment.stripeEnabled) {
       this.initStripe();
     }
   }
@@ -1383,7 +1409,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     return Math.round(usd * 83);
   }
 
-  // ─── Razorpay Payment ─────────────────────────────────────────────────────────
+  // --- Razorpay Payment ---
 
   private loadRazorpayScript(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -1401,18 +1427,32 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   async payWithRazorpay(method: 'upi' | 'gpay' | 'phonepe' | 'card'): Promise<void> {
     try {
+      // Double-click guard
       if (this.processing()) return;
+
+      // Pre-flight checks
       if (!this.bookingAmount()) {
         this.cardError.set('Booking details loading…');
         return;
       }
+      if (this.holdSecondsLeft() <= 0) {
+        this.cardError.set('Your booking hold has expired. Please create a new booking.');
+        return;
+      }
+      if (this.retryCooldownSecondsLeft() > 0) {
+        this.cardError.set(`Retry available in ${this.retryCooldownMinutes()}:${this.retryCooldownSecondsPad()}.`);
+        return;
+      }
 
       this.processing.set(true);
+      this.cardError.set('');
       this.step.set('processing');
       this.processingStepIdx.set(0);
 
+      // Step 0 — Load Razorpay SDK
       await this.loadRazorpayScript();
 
+      // Step 1 — Create order on backend
       this.processingStepIdx.set(1);
       const order = await firstValueFrom(
         this.paymentService.createRazorpayOrder(
@@ -1422,7 +1462,11 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         )
       );
 
+      // Step 2 — Open Razorpay checkout modal
       this.processingStepIdx.set(2);
+
+      // Return to form view so the Razorpay modal overlays the payment page
+      this.step.set('details');
 
       const options = {
         key: order.key_id,
@@ -1439,7 +1483,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         },
         handler: async (response: RazorpayResponse) => {
           try {
+            this.step.set('processing');
             this.processingStepIdx.set(3);
+
             await firstValueFrom(
               this.paymentService.verifyRazorpayPayment({
                 razorpay_order_id: response.razorpay_order_id,
@@ -1451,13 +1497,12 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
             if (await this.verifyConfirmedPayment()) {
               this.processing.set(false);
-              this.step.set('details');
             } else {
-              this.cardError.set('Payment verification failed. Please check your booking status.');
+              this.cardError.set('Payment is being confirmed. Please check your booking status shortly.');
               this.processing.set(false);
               this.step.set('details');
             }
-          } catch (err: unknown) {
+          } catch {
             this.cardError.set('Payment verification failed. Please try again.');
             this.processing.set(false);
             this.step.set('details');
@@ -1465,7 +1510,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         },
         modal: {
           ondismiss: () => {
-            this.cardError.set('Payment cancelled by user.');
+            this.cardError.set('Payment was not completed. You can try again.');
             this.processing.set(false);
             this.step.set('details');
           }
@@ -1473,17 +1518,61 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       };
 
       const rzp = new Razorpay(options as RazorpayOptions);
+
+      // Handle explicit payment failures from Razorpay (card declined, UPI timeout, etc.)
+      rzp.on('payment.failed', (failedResponse: RazorpayFailedResponse) => {
+        const reason = failedResponse.error?.description || 'Payment failed';
+
+        // Record failure to backend for tracking
+        this.paymentService.recordFailure(
+          this.bookingId(),
+          reason,
+          undefined,
+          order.transaction_ref,
+        ).subscribe();
+
+        this.retryCount.update(c => c + 1);
+        if (this.retryCount() >= this.maxRetries) {
+          this.startRetryCooldown(3 * 60);
+          this.cardError.set(`Too many failed attempts. Retry available in ${this.retryCooldownMinutes()}:${this.retryCooldownSecondsPad()}.`);
+        } else {
+          this.cardError.set(`${reason}. Please try again.`);
+        }
+        this.processing.set(false);
+        this.step.set('details');
+      });
+
       rzp.open();
     } catch (err: unknown) {
-      this.cardError.set('Payment failed. Please try again.');
+      const httpErr = err as { status?: number; error?: { detail?: string | { message?: string } } };
+      const detail = httpErr?.error?.detail;
+      let message = 'Payment failed. Please try again.';
+
+      if (httpErr?.status === 409) {
+        const detailMsg = typeof detail === 'string' ? detail : (detail as { message?: string })?.message || '';
+        if (detailMsg.toLowerCase().includes('already paid')) {
+          if (await this.verifyConfirmedPayment()) return;
+          message = 'Payment may already be completed. Please check your booking status.';
+        } else {
+          message = detailMsg || 'Booking is no longer available for payment.';
+        }
+      } else if (httpErr?.status === 400) {
+        message = typeof detail === 'string' ? detail : 'This booking cannot be paid for.';
+      } else if (httpErr?.status === 502) {
+        message = 'Payment gateway is temporarily unavailable. Please try again.';
+      } else if (httpErr?.status === 503) {
+        message = 'Razorpay is not available. Please try again later.';
+      }
+
+      this.cardError.set(message);
       this.processing.set(false);
       this.step.set('details');
     }
   }
 
-  // ─── Tab Switch ──────────────────────────────────────────────────────────────
+  // --- Tab Switch ---
 
-  // ─── Mock Payment ────────────────────────────────────────────────────────────
+  // --- Mock Payment ---
 
   processMockPayment(success: boolean) {
     if (!this.bookingId() || !this.bookingAmount()) return;
@@ -1526,7 +1615,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  // ─── Real Stripe Card Payment ────────────────────────────────────────────────
+  // --- Real Stripe Card Payment ---
 
   async processCardPayment() {
     // Double-click guard — also prevents re-entry while already processing
@@ -1678,6 +1767,11 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         } else {
           this.uiState.set('success');
         }
+      } else if (status === 503 && typeof detail !== 'string' && detail?.code === 'STRIPE_DISABLED') {
+        // Stripe is toggled off — direct user to Razorpay
+        this.uiState.set('idle');
+        this.selectPaymentMethod('upi');
+        this.cardError.set('Card payments are temporarily unavailable. Please pay via UPI, GPay, or PhonePe.');
       } else if (paymentError.name === 'TimeoutError') {
         this.uiState.set('failed_retry');
         this.restoreCardEntry();
@@ -1695,7 +1789,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // ─── Animation ───────────────────────────────────────────────────────────────
+  // --- Animation ---
 
   private runProcessingAnimation(): Promise<void> {
     this.processingStepIdx.set(-1);

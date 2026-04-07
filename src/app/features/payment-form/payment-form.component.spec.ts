@@ -1189,10 +1189,23 @@ describe('PaymentFormComponent', () => {
     expect(component.cardError()).toContain('loading');
   });
 
+  it('payWithRazorpay returns early when hold expired', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+    component.holdSecondsLeft.set(0);
+
+    await component.payWithRazorpay('upi');
+
+    expect(component.cardError()).toContain('expired');
+    expect(component.processing()).toBe(false);
+  });
+
   it('payWithRazorpay shows error when Razorpay script fails to load', async () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     (window as unknown as { Razorpay?: unknown }).Razorpay = undefined;
 
@@ -1218,6 +1231,7 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     // Ensure Razorpay is NOT on window so loadRazorpayScript creates a script element
     (window as unknown as { Razorpay?: unknown }).Razorpay = undefined;
@@ -1229,7 +1243,7 @@ describe('PaymentFormComponent', () => {
         setTimeout(() => {
           // Set Razorpay on window (simulating script load) then fire onload
           const mockOpen = jest.fn();
-          (window as unknown as { Razorpay: unknown }).Razorpay = jest.fn().mockImplementation(() => ({ open: mockOpen }));
+          (window as unknown as { Razorpay: unknown }).Razorpay = jest.fn().mockImplementation(() => ({ open: mockOpen, on: jest.fn() }));
           el.onload?.(new Event('load'));
         }, 0);
       }
@@ -1254,13 +1268,14 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     const mockOpen = jest.fn();
     let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
 
     const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
       capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
-      return { open: mockOpen };
+      return { open: mockOpen, on: jest.fn() };
     });
     (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
 
@@ -1302,12 +1317,13 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
 
     const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
       capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
-      return { open: jest.fn() };
+      return { open: jest.fn(), on: jest.fn() };
     });
     (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
 
@@ -1331,7 +1347,7 @@ describe('PaymentFormComponent', () => {
     });
     await jest.runAllTimersAsync();
 
-    expect(component.cardError()).toContain('verification failed');
+    expect(component.cardError()).toContain('being confirmed');
     expect(component.processing()).toBe(false);
     expect(component.step()).toBe('details');
 
@@ -1342,12 +1358,13 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
 
     const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
       capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
-      return { open: jest.fn() };
+      return { open: jest.fn(), on: jest.fn() };
     });
     (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
 
@@ -1380,12 +1397,13 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     let capturedDismiss: () => void;
 
     const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
       capturedDismiss = ((opts as unknown as { modal: { ondismiss: () => void } }).modal).ondismiss;
-      return { open: jest.fn() };
+      return { open: jest.fn(), on: jest.fn() };
     });
     (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
 
@@ -1400,7 +1418,7 @@ describe('PaymentFormComponent', () => {
 
     capturedDismiss!();
 
-    expect(component.cardError()).toContain('cancelled by user');
+    expect(component.cardError()).toContain('not completed');
     expect(component.processing()).toBe(false);
     expect(component.step()).toBe('details');
 
@@ -1615,12 +1633,13 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     let capturedOptions: Record<string, unknown> = {};
 
     const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
       capturedOptions = opts;
-      return { open: jest.fn() };
+      return { open: jest.fn(), on: jest.fn() };
     });
     (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
 
@@ -1708,12 +1727,13 @@ describe('PaymentFormComponent', () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
 
     let capturedHandler: (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => void;
 
     const MockRazorpay = jest.fn().mockImplementation((opts: Record<string, unknown>) => {
       capturedHandler = (opts as unknown as { handler: typeof capturedHandler }).handler;
-      return { open: jest.fn() };
+      return { open: jest.fn(), on: jest.fn() };
     });
     (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
 
