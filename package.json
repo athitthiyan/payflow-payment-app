@@ -1,7 +1,7 @@
 {
-  "name": "payflow-payment-app",
+  "name": "stayvora-pay",
   "version": "1.0.0",
-  "description": "PayFlow — Secure Payment Gateway Integration",
+  "description": "Stayvora Pay — Secure Payment Gateway",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --port 4201",

@@ -1,27 +1,29 @@
-// PayFlow Design System — Clean, trustworthy, tech-forward
+// Stayvora Pay — Premium Secure Payment Design System
 :root {
-  --pf-primary:       #22d3ee;   // Cyan
-  --pf-primary-dark:  #0891b2;
-  --pf-success:       #22c55e;
-  --pf-error:         #ef4444;
-  --pf-warning:       #f59e0b;
+  --sv-gold:          #d6b86b;
+  --sv-gold-light:    #f0d58f;
+  --sv-gold-dark:     #a7843c;
+  --sv-success:       #22c55e;
+  --sv-error:         #ef4444;
+  --sv-warning:       #f59e0b;
 
-  --pf-bg:            #050a14;
-  --pf-bg-2:          #0a1220;
-  --pf-bg-3:          #0f1a2e;
-  --pf-surface:       #111e35;
-  --pf-surface-2:     #162440;
-  --pf-border:        rgba(255,255,255,0.07);
-  --pf-border-2:      rgba(255,255,255,0.12);
+  --sv-bg:            #071119;
+  --sv-bg-2:          #0b1622;
+  --sv-bg-3:          #122538;
+  --sv-surface:       #162435;
+  --sv-surface-2:     #1b2d44;
+  --sv-border:        rgba(255,255,255,0.07);
+  --sv-border-2:      rgba(255,255,255,0.12);
 
-  --pf-text:          #f0f6ff;
-  --pf-text-muted:    #7b91b5;
-  --pf-text-subtle:   #3d5278;
+  --sv-text:          #f0f4ff;
+  --sv-text-muted:    #8a9bbf;
+  --sv-text-subtle:   #4e5e7a;
 
-  --pf-gradient:      linear-gradient(135deg, #050a14 0%, #0a1220 50%, #0f1a2e 100%);
-  --pf-glow-cyan:     0 0 40px rgba(34,211,238,0.2);
-  --pf-glow-green:    0 0 40px rgba(34,197,94,0.2);
-  --pf-shadow:        0 20px 60px rgba(0,0,0,0.6);
+  --sv-gradient:      linear-gradient(135deg, #071119 0%, #0b1622 50%, #122538 100%);
+  --sv-gradient-gold: linear-gradient(135deg, #d6b86b 0%, #f0d58f 48%, #c89f4f 100%);
+  --sv-glow-gold:     0 0 40px rgba(214,184,107,0.2);
+  --sv-glow-green:    0 0 40px rgba(34,197,94,0.2);
+  --sv-shadow:        0 20px 60px rgba(0,0,0,0.6);
 
   --radius-sm:  6px;
   --radius-md:  12px;
@@ -35,15 +37,15 @@ html { scroll-behavior: smooth; }
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
-  background: var(--pf-bg);
-  color: var(--pf-text);
+  background: var(--sv-bg);
+  color: var(--sv-text);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
 }
 
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--pf-bg-2); }
-::-webkit-scrollbar-thumb { background: var(--pf-surface-2); border-radius: 99px; }
+::-webkit-scrollbar-track { background: var(--sv-bg-2); }
+::-webkit-scrollbar-thumb { background: var(--sv-surface-2); border-radius: 99px; }
 
 a { color: inherit; text-decoration: none; }
 button { cursor: pointer; font-family: inherit; border: none; outline: none; }
@@ -86,10 +88,10 @@ input, select, textarea { font-family: inherit; }
   white-space: nowrap;
 
   &--primary {
-    background: linear-gradient(135deg, #22d3ee, #0891b2);
-    color: #050a14;
-    box-shadow: 0 4px 20px rgba(34,211,238,0.4);
-    &:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(34,211,238,0.5); }
+    background: var(--sv-gradient-gold);
+    color: #0a0f1e;
+    box-shadow: 0 4px 20px rgba(214,184,107,0.4);
+    &:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(214,184,107,0.5); }
   }
 
   &--success {
@@ -101,16 +103,16 @@ input, select, textarea { font-family: inherit; }
 
   &--ghost {
     background: transparent;
-    color: var(--pf-primary);
-    border: 1px solid var(--pf-primary);
-    &:hover { background: rgba(34,211,238,0.1); }
+    color: var(--sv-gold);
+    border: 1px solid var(--sv-gold);
+    &:hover { background: rgba(214,184,107,0.1); }
   }
 
   &--secondary {
-    background: var(--pf-surface);
-    color: var(--pf-text);
-    border: 1px solid var(--pf-border-2);
-    &:hover { background: var(--pf-surface-2); }
+    background: var(--sv-surface);
+    color: var(--sv-text);
+    border: 1px solid var(--sv-border-2);
+    &:hover { background: var(--sv-surface-2); }
   }
 
   &--lg { padding: 16px 36px; font-size: 16px; }
@@ -128,33 +130,33 @@ input, select, textarea { font-family: inherit; }
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: var(--pf-text-muted);
+    color: var(--sv-text-muted);
   }
 }
 
 .form-control {
   width: 100%;
   padding: 14px 18px;
-  background: var(--pf-bg-3);
-  border: 1px solid var(--pf-border);
+  background: var(--sv-bg-3);
+  border: 1px solid var(--sv-border);
   border-radius: var(--radius-md);
-  color: var(--pf-text);
+  color: var(--sv-text);
   font-size: 15px;
   transition: all 0.2s;
 
-  &::placeholder { color: var(--pf-text-subtle); }
+  &::placeholder { color: var(--sv-text-subtle); }
 
   &:focus {
     outline: none;
-    border-color: var(--pf-primary);
-    box-shadow: 0 0 0 3px rgba(34,211,238,0.15);
-    background: var(--pf-bg-2);
+    border-color: var(--sv-gold);
+    box-shadow: 0 0 0 3px rgba(214,184,107,0.15);
+    background: var(--sv-bg-2);
   }
 }
 
 .divider {
   height: 1px;
-  background: var(--pf-border);
+  background: var(--sv-border);
   margin: 16px 0;
 }
 
@@ -170,5 +172,5 @@ input, select, textarea { font-family: inherit; }
   &--success { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
   &--error   { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
   &--pending { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
-  &--cyan    { background: rgba(34,211,238,0.15); color: #22d3ee; border: 1px solid rgba(34,211,238,0.3); }
+  &--gold    { background: rgba(214,184,107,0.15); color: #d6b86b; border: 1px solid rgba(214,184,107,0.3); }
 }

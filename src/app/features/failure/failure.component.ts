@@ -52,7 +52,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
     .failure-page__bg {
       position: fixed;
       inset: 0;
-      background: var(--pf-gradient);
+      background: var(--sv-gradient);
       z-index: -1;
     }
 
@@ -67,7 +67,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
     }
 
     .failure-card {
-      background: var(--pf-surface);
+      background: var(--sv-surface);
       border: 1px solid rgba(239,68,68,0.3);
       border-radius: var(--radius-xl);
       padding: 60px 48px;
@@ -75,7 +75,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       max-width: 520px;
       width: calc(100% - 48px);
       margin: 32px 24px;
-      box-shadow: 0 0 60px rgba(239,68,68,0.1), var(--pf-shadow);
+      box-shadow: 0 0 60px rgba(239,68,68,0.1), var(--sv-shadow);
       animation: fadeInUp 0.5s ease;
     }
 
@@ -90,7 +90,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 
     .failure-card > p {
       font-size: 15px;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
       margin-bottom: 32px;
       padding: 12px 20px;
       background: rgba(239,68,68,0.08);
@@ -109,7 +109,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 
     .failure-card__suggestions {
       text-align: left;
-      background: var(--pf-surface-2);
+      background: var(--sv-surface-2);
       border-radius: var(--radius-lg);
       padding: 20px;
       margin-bottom: 32px;
@@ -124,7 +124,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       gap: 8px;
     }
 
-    .failure-card__suggestions li { font-size: 14px; color: var(--pf-text-muted); }
+    .failure-card__suggestions li { font-size: 14px; color: var(--sv-text-muted); }
 
     .failure-card__actions {
       display: flex;

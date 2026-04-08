@@ -15,7 +15,7 @@ import { Transaction } from '../../core/models/transaction.model';
         <div class="txn-header">
           <div>
             <h1>Transaction <span>History</span></h1>
-            <p>All payment transactions processed through PayFlow</p>
+            <p>All payment transactions processed through Stayvora Pay</p>
           </div>
           <div class="txn-header__filter">
             <select [(ngModel)]="statusFilter" (change)="loadTransactions()" class="form-control">
@@ -74,7 +74,7 @@ import { Transaction } from '../../core/models/transaction.model';
                     <td class="txn-ref">{{ txn.transaction_ref }}</td>
                     <td>{{ txn.booking?.user_name || '—' }}</td>
                     <td>{{ txn.booking?.room?.hotel_name || '—' }}</td>
-                    <td class="txn-amount">\${{ txn.amount | number:'1.2-2' }}</td>
+                    <td class="txn-amount">₹{{ txn.amount | number:'1.2-2' }}</td>
                     <td>
                       <span class="txn-method">
                         {{ txn.card_brand || txn.payment_method }}
@@ -116,13 +116,13 @@ import { Transaction } from '../../core/models/transaction.model';
       margin-bottom: 32px;
 
       h1 {
-        font-family: 'Space Grotesk', sans-serif;
+        font-family: 'Playfair Display', Georgia, serif;
         font-size: 2rem;
         color: white;
-        span { color: var(--pf-primary); }
+        span { color: var(--sv-gold); }
       }
 
-      p { font-size: 14px; color: var(--pf-text-muted); margin-top: 6px; }
+      p { font-size: 14px; color: var(--sv-text-muted); margin-top: 6px; }
 
       @media (max-width: 600px) { flex-direction: column; align-items: flex-start; gap: 16px; }
     }
@@ -144,8 +144,8 @@ import { Transaction } from '../../core/models/transaction.model';
       align-items: center;
       gap: 16px;
       padding: 20px;
-      background: var(--pf-surface);
-      border: 1px solid var(--pf-border);
+      background: var(--sv-surface);
+      border: 1px solid var(--sv-border);
       border-radius: var(--radius-lg);
 
       strong {
@@ -155,14 +155,14 @@ import { Transaction } from '../../core/models/transaction.model';
         color: white;
       }
 
-      span { font-size: 13px; color: var(--pf-text-muted); }
+      span { font-size: 13px; color: var(--sv-text-muted); }
     }
 
     .stat-card__icon { font-size: 1.8rem; }
 
     .txn-table-wrap {
-      background: var(--pf-surface);
-      border: 1px solid var(--pf-border);
+      background: var(--sv-surface);
+      border: 1px solid var(--sv-border);
       border-radius: var(--radius-xl);
       overflow: hidden;
     }
@@ -178,23 +178,23 @@ import { Transaction } from '../../core/models/transaction.model';
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 1px;
-        color: var(--pf-primary);
-        border-bottom: 1px solid var(--pf-border);
-        background: rgba(34,211,238,0.03);
+        color: var(--sv-gold);
+        border-bottom: 1px solid var(--sv-border);
+        background: rgba(214,184,107,0.03);
       }
 
-      tbody tr:not(:last-child) { border-bottom: 1px solid var(--pf-border); }
+      tbody tr:not(:last-child) { border-bottom: 1px solid var(--sv-border); }
     }
 
     .txn-row {
-      td { padding: 16px 20px; font-size: 14px; color: var(--pf-text-muted); }
+      td { padding: 16px 20px; font-size: 14px; color: var(--sv-text-muted); }
       &:hover td { background: rgba(255,255,255,0.02); }
     }
 
     .txn-ref {
       font-family: monospace;
       font-size: 12px !important;
-      color: var(--pf-text-muted) !important;
+      color: var(--sv-text-muted) !important;
     }
 
     .txn-amount { font-weight: 700; color: white !important; font-size: 15px !important; }
@@ -208,7 +208,7 @@ import { Transaction } from '../../core/models/transaction.model';
       padding: 80px 20px;
       span { font-size: 3rem; display: block; margin-bottom: 16px; }
       h3 { font-size: 1.3rem; color: white; margin-bottom: 8px; }
-      p { color: var(--pf-text-muted); }
+      p { color: var(--sv-text-muted); }
     }
 
     .txn-pagination {
@@ -274,7 +274,7 @@ export class TransactionHistoryComponent implements OnInit {
       success: 'badge--success',
       failed: 'badge--error',
       pending: 'badge--pending',
-      refunded: 'badge--cyan',
+      refunded: 'badge--gold',
     };
     return map[status] || '';
   }
@@ -287,7 +287,7 @@ export class TransactionHistoryComponent implements OnInit {
     this.stats[0].value = String(this.total());
     this.stats[1].value = String(success.length);
     this.stats[2].value = String(failed.length);
-    this.stats[3].value = `$${revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    this.stats[3].value = `₹${revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   }
 
 }

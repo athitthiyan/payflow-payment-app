@@ -16,7 +16,8 @@ describe('AppComponent', () => {
     fixture.detectChanges();
 
     const element = fixture.nativeElement as HTMLElement;
-    expect(element.querySelector('.payflow-header')).not.toBeNull();
+    expect(element.querySelector('.sv-header')).not.toBeNull();
+    expect(element.textContent).toContain('Stayvora');
     expect(element.textContent).toContain('Pay');
     expect(element.textContent).toContain('Checkout');
     expect(element.textContent).toContain('Transactions');

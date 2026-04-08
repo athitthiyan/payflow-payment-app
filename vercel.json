@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm run build:prod",
-  "outputDirectory": "dist/payflow-payment-app/browser",
+  "outputDirectory": "dist/stayvora-pay/browser",
   "framework": null,
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }

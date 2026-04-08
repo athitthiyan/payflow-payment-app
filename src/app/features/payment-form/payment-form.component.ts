@@ -65,6 +65,9 @@ interface PaymentRoomSummary {
 interface PaymentBookingSummary {
   booking_ref: string;
   total_amount: number;
+  room_rate?: number;
+  taxes?: number;
+  service_fee?: number;
   status?: string;
   payment_status: string;
   lifecycle_state?: string;
@@ -175,6 +178,7 @@ interface PaymentErrorShape {
                     >
                       <span class="payment-method-icon">💳</span>
                       <span class="payment-method-label">Card</span>
+                      <span class="payment-method-sub">Stripe</span>
                     </button>
                   }
                   <button
@@ -183,26 +187,9 @@ interface PaymentErrorShape {
                     (click)="selectPaymentMethod('upi')"
                     type="button"
                   >
-                    <span class="payment-method-icon">📱</span>
-                    <span class="payment-method-label">UPI</span>
-                  </button>
-                  <button
-                    class="payment-method-btn"
-                    [class.active]="selectedPaymentMethod() === 'gpay'"
-                    (click)="selectPaymentMethod('gpay')"
-                    type="button"
-                  >
-                    <span class="payment-method-icon">G</span>
-                    <span class="payment-method-label">GPay</span>
-                  </button>
-                  <button
-                    class="payment-method-btn"
-                    [class.active]="selectedPaymentMethod() === 'phonepe'"
-                    (click)="selectPaymentMethod('phonepe')"
-                    type="button"
-                  >
-                    <span class="payment-method-icon">📞</span>
-                    <span class="payment-method-label">PhonePe</span>
+                    <span class="payment-method-icon">🏦</span>
+                    <span class="payment-method-label">Razorpay</span>
+                    <span class="payment-method-sub">UPI / GPay / PhonePe</span>
                   </button>
                 </div>
               </div>
@@ -255,7 +242,7 @@ interface PaymentErrorShape {
                   } @else if (!bookingAmount()) {
                     Loading booking…
                   } @else {
-                    Pay \${{ bookingAmount() | number:'1.0-0' }} Securely 🔒
+                    Pay ₹{{ bookingAmount() | number:'1.0-0' }} Securely 🔒
                   }
                 </button>
               }
@@ -284,7 +271,7 @@ interface PaymentErrorShape {
                   } @else if (holdSecondsLeft() <= 0) {
                     Booking hold expired
                   } @else {
-                    Pay ₹{{ convertUSDToINR(bookingAmount()) | number:'1.0-0' }} with {{ getPaymentMethodLabel(selectedPaymentMethod()) }} 🔒
+                    Pay ₹{{ bookingAmount() | number:'1.0-0' }} with Razorpay 🔒
                   }
                 </button>
               }
@@ -370,16 +357,16 @@ interface PaymentErrorShape {
             <div class="payment-summary__amount">
               <div class="amount-row">
                 <span>Subtotal</span>
-                <span>\${{ (bookingAmount() / 1.17) | number:'1.0-0' }}</span>
+                <span>₹{{ booking()?.room_rate | number:'1.0-0' }}</span>
               </div>
               <div class="amount-row">
                 <span>Taxes & Fees</span>
-                <span>\${{ (bookingAmount() - bookingAmount() / 1.17) | number:'1.0-0' }}</span>
+                <span>₹{{ (booking()?.taxes || 0) + (booking()?.service_fee || 0) | number:'1.0-0' }}</span>
               </div>
               <div class="divider"></div>
               <div class="amount-row amount-row--total">
                 <span>Total Due</span>
-                <span class="amount-total">\${{ bookingAmount() | number:'1.0-0' }}</span>
+                <span class="amount-total">₹{{ bookingAmount() | number:'1.0-0' }}</span>
               </div>
             </div>
 
@@ -406,7 +393,7 @@ interface PaymentErrorShape {
     .payment-page__bg {
       position: fixed;
       inset: 0;
-      background: var(--pf-gradient);
+      background: var(--sv-gradient);
       z-index: -1;
       overflow: hidden;
     }
@@ -472,7 +459,7 @@ interface PaymentErrorShape {
       padding: 0;
       border: 0;
       background: transparent;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
       font: inherit;
       font-weight: 700;
       cursor: pointer;
@@ -480,7 +467,7 @@ interface PaymentErrorShape {
     }
 
     .back-link:hover {
-      color: var(--pf-primary);
+      color: var(--sv-primary);
       transform: translateX(-2px);
     }
 
@@ -490,7 +477,7 @@ interface PaymentErrorShape {
       gap: 6px;
       background: rgba(34,211,238,0.1);
       border: 1px solid rgba(34,211,238,0.2);
-      color: var(--pf-primary);
+      color: var(--sv-primary);
       padding: 6px 14px;
       border-radius: 99px;
       font-size: 12px;
@@ -507,8 +494,8 @@ interface PaymentErrorShape {
       margin-bottom: 8px;
     }
 
-    .pf-header__title span { color: var(--pf-primary); }
-    .pf-header__sub { font-size: 14px; color: var(--pf-text-muted); }
+    .pf-header__title span { color: var(--sv-primary); }
+    .pf-header__sub { font-size: 14px; color: var(--sv-text-muted); }
 
     /* Alert */
     .alert {
@@ -607,7 +594,7 @@ interface PaymentErrorShape {
     .btn--ghost {
       border: 1px solid rgba(34,211,238,0.28);
       background: rgba(34,211,238,0.06);
-      color: var(--pf-primary);
+      color: var(--sv-primary);
     }
 
     .btn--danger {
@@ -647,10 +634,10 @@ interface PaymentErrorShape {
       flex-wrap: wrap;
       margin-top: 24px;
       padding-top: 20px;
-      border-top: 1px solid var(--pf-border);
+      border-top: 1px solid var(--sv-border);
     }
 
-    .pf-trust span { font-size: 12px; color: var(--pf-text-muted); font-weight: 500; }
+    .pf-trust span { font-size: 12px; color: var(--sv-text-muted); font-weight: 500; }
 
     /* Processing */
     .processing-state {
@@ -666,7 +653,7 @@ interface PaymentErrorShape {
       margin-bottom: 8px;
     }
 
-    .processing-state p { font-size: 15px; color: var(--pf-text-muted); margin-bottom: 32px; }
+    .processing-state p { font-size: 15px; color: var(--sv-text-muted); margin-bottom: 32px; }
 
     .processing-state__spinner {
       position: relative;
@@ -683,7 +670,7 @@ interface PaymentErrorShape {
       width: 80px;
       height: 80px;
       border: 3px solid rgba(34,211,238,0.15);
-      border-top-color: var(--pf-primary);
+      border-top-color: var(--sv-primary);
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
@@ -701,16 +688,16 @@ interface PaymentErrorShape {
       align-items: center;
       gap: 12px;
       padding: 12px 20px;
-      background: var(--pf-surface);
-      border: 1px solid var(--pf-border);
+      background: var(--sv-surface);
+      border: 1px solid var(--sv-border);
       border-radius: var(--radius-md);
       font-size: 14px;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
       transition: all 0.3s;
       text-align: left;
     }
 
-    .processing-step.active { border-color: rgba(34,211,238,0.3); color: var(--pf-primary); }
+    .processing-step.active { border-color: rgba(34,211,238,0.3); color: var(--sv-primary); }
     .processing-step.done { border-color: rgba(34,197,94,0.3); color: #22c55e; }
     .processing-step__icon { font-size: 16px; flex-shrink: 0; }
 
@@ -728,11 +715,11 @@ interface PaymentErrorShape {
     .payment-summary { position: sticky; top: 90px; }
 
     .payment-summary__card {
-      background: var(--pf-surface);
-      border: 1px solid var(--pf-border-2);
+      background: var(--sv-surface);
+      border: 1px solid var(--sv-border-2);
       border-radius: var(--radius-xl);
       padding: 28px;
-      box-shadow: var(--pf-shadow);
+      box-shadow: var(--sv-shadow);
       animation: fadeInUp 0.5s ease 0.1s both;
     }
 
@@ -756,17 +743,17 @@ interface PaymentErrorShape {
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: var(--pf-primary);
+      color: var(--sv-primary);
     }
 
-    .payment-summary__room-loc { font-size: 13px; color: var(--pf-text-muted); }
+    .payment-summary__room-loc { font-size: 13px; color: var(--sv-text-muted); }
 
     .payment-summary__dates {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 16px;
-      background: var(--pf-surface-2);
+      background: var(--sv-surface-2);
       border-radius: var(--radius-md);
       margin-bottom: 16px;
     }
@@ -778,7 +765,7 @@ interface PaymentErrorShape {
     .payment-summary__dates div span {
       display: block;
       font-size: 11px;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
       margin-bottom: 4px;
     }
 
@@ -788,7 +775,7 @@ interface PaymentErrorShape {
       display: block;
       font-size: 1.5rem;
       font-weight: 800;
-      color: var(--pf-primary);
+      color: var(--sv-primary);
     }
 
     .payment-summary__amount { display: flex; flex-direction: column; gap: 8px; }
@@ -796,19 +783,19 @@ interface PaymentErrorShape {
     .payment-summary__security {
       margin-top: 20px;
       padding-top: 16px;
-      border-top: 1px solid var(--pf-border);
+      border-top: 1px solid var(--sv-border);
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
 
-    .security-item { font-size: 13px; color: var(--pf-text-muted); }
+    .security-item { font-size: 13px; color: var(--sv-text-muted); }
 
     .amount-row {
       display: flex;
       justify-content: space-between;
       font-size: 14px;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
     }
 
     .amount-row--total { font-weight: 700; font-size: 16px; color: white; }
@@ -816,12 +803,12 @@ interface PaymentErrorShape {
     .amount-total {
       font-size: 1.4rem;
       font-weight: 800;
-      color: var(--pf-primary);
+      color: var(--sv-primary);
     }
 
     .divider {
       height: 1px;
-      background: var(--pf-border);
+      background: var(--sv-border);
       margin: 16px 0;
     }
 
@@ -881,8 +868,8 @@ interface PaymentErrorShape {
       text-align: center;
       padding: 56px 32px;
       border-radius: var(--radius-xl);
-      border: 1px solid var(--pf-border);
-      background: var(--pf-surface);
+      border: 1px solid var(--sv-border);
+      background: var(--sv-surface);
       animation: fadeInUp 0.5s ease;
     }
 
@@ -896,7 +883,7 @@ interface PaymentErrorShape {
       margin-bottom: 12px;
     }
 
-    .state-block p { font-size: 15px; color: var(--pf-text-muted); line-height: 1.6; margin-bottom: 28px; }
+    .state-block p { font-size: 15px; color: var(--sv-text-muted); line-height: 1.6; margin-bottom: 28px; }
 
     .state-block--expired { border-color: rgba(245,158,11,0.2); }
     .state-block--expired .state-block__icon { filter: drop-shadow(0 0 12px rgba(245,158,11,0.4)); }
@@ -907,7 +894,7 @@ interface PaymentErrorShape {
     .btn--primary {
       display: inline-block;
       padding: 14px 28px;
-      background: linear-gradient(135deg, var(--pf-primary), #0ea5e9);
+      background: linear-gradient(135deg, var(--sv-primary), #0ea5e9);
       color: #050a14;
       font-weight: 700;
       font-size: 15px;
@@ -939,7 +926,7 @@ interface PaymentErrorShape {
       background: rgba(255, 255, 255, 0.04);
       border: 2px solid rgba(255, 255, 255, 0.12);
       border-radius: 10px;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
       font-weight: 600;
       font-size: 13px;
       cursor: pointer;
@@ -949,13 +936,13 @@ interface PaymentErrorShape {
     .payment-method-btn:hover {
       border-color: rgba(34, 211, 238, 0.3);
       background: rgba(34, 211, 238, 0.05);
-      color: var(--pf-primary);
+      color: var(--sv-primary);
     }
 
     .payment-method-btn.active {
-      border-color: var(--pf-primary);
+      border-color: var(--sv-primary);
       background: rgba(34, 211, 238, 0.12);
-      color: var(--pf-primary);
+      color: var(--sv-primary);
       box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.08);
     }
 
@@ -968,11 +955,19 @@ interface PaymentErrorShape {
       display: block;
     }
 
+    .payment-method-sub {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: -4px;
+    }
+
     .form-label {
       display: block;
       font-size: 13px;
       font-weight: 600;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
       margin-bottom: 12px;
     }
   `],
@@ -998,7 +993,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   paymentMethod = signal<'mock' | 'card'>('card');
   // When Stripe is disabled, default to UPI so users land on Razorpay immediately
-  selectedPaymentMethod = signal<'card' | 'upi' | 'gpay' | 'phonepe'>(
+  selectedPaymentMethod = signal<'card' | 'upi'>(
     environment.stripeEnabled ? 'card' : 'upi'
   );
   processing = signal(false);
@@ -1258,7 +1253,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       appearance: {
         theme: 'night',
         variables: {
-          colorPrimary: '#22d3ee',
+          colorPrimary: '#d6b86b',
           colorBackground: '#111827',
           colorText: '#f1f5f9',
           colorTextSecondary: '#94a3b8',
@@ -1295,7 +1290,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
           fontFamily: 'Space Grotesk, system-ui, sans-serif',
           fontSize: '16px',
           '::placeholder': { color: '#475569' },
-          iconColor: '#22d3ee',
+          iconColor: '#d6b86b',
         },
         invalid: {
           color: '#ef4444',
@@ -1387,7 +1382,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // --- Payment Method Selection ---
 
-  selectPaymentMethod(method: 'card' | 'upi' | 'gpay' | 'phonepe'): void {
+  selectPaymentMethod(method: 'card' | 'upi'): void {
     this.selectedPaymentMethod.set(method);
     this.cardError.set('');
     if (method === 'card' && environment.stripeEnabled) {
@@ -1425,7 +1420,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  async payWithRazorpay(method: 'upi' | 'gpay' | 'phonepe' | 'card'): Promise<void> {
+  async payWithRazorpay(method: 'upi' | 'card'): Promise<void> {
     try {
       // Double-click guard
       if (this.processing()) return;
@@ -1476,10 +1471,10 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         name: 'Stayvora',
         description: 'Hotel Booking Payment',
         prefill: {
-          method: method === 'gpay' ? 'upi' : method
+          method: 'upi'
         },
         theme: {
-          color: '#22d3ee'
+          color: '#d6b86b'
         },
         handler: async (response: RazorpayResponse) => {
           try {

@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "payflow-payment-app": {
+    "stayvora-pay": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -18,7 +18,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "outputPath": "dist/payflow-payment-app",
+            "outputPath": "dist/stayvora-pay",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -62,10 +62,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "payflow-payment-app:build:production"
+              "buildTarget": "stayvora-pay:build:production"
             },
             "development": {
-              "buildTarget": "payflow-payment-app:build:development"
+              "buildTarget": "stayvora-pay:build:development"
             }
           },
           "defaultConfiguration": "development"

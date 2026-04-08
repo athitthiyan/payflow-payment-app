@@ -13,7 +13,7 @@ describe('routes', () => {
 
   it('keeps the fallback redirect and titles in place', () => {
     expect(routes.find(route => route.path === '**')?.redirectTo).toBe('');
-    expect(routes.find(route => route.path === '')?.title).toContain('PayFlow');
+    expect(routes.find(route => route.path === '')?.title).toContain('Stayvora Pay');
     expect(routes.find(route => route.path === 'success')?.title).toContain('Successful');
     expect(routes.find(route => route.path === 'failure')?.title).toContain('Failed');
   });

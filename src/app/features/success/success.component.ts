@@ -33,12 +33,11 @@ import { environment } from '../../../environments/environment';
         </div>
 
         <div class="success-card__amount">
-          Amount Charged: <strong>\${{ amount | number:'1.2-2' }}</strong>
+          Amount Charged: <strong>₹{{ amount | number:'1.2-2' }}</strong>
         </div>
 
         <div class="success-card__actions">
           <a [href]="bookingAppUrl" class="btn btn--success btn--lg">🏨 View My Booking</a>
-          <a routerLink="/transactions" class="btn btn--ghost">View Transactions</a>
         </div>
 
         <div class="success-card__links">
@@ -67,7 +66,7 @@ import { environment } from '../../../environments/environment';
     .success-page__bg {
       position: fixed;
       inset: 0;
-      background: var(--pf-gradient);
+      background: var(--sv-gradient);
       z-index: -1;
       overflow: hidden;
     }
@@ -94,7 +93,7 @@ import { environment } from '../../../environments/environment';
 
     .success-card {
       position: relative;
-      background: var(--pf-surface);
+      background: var(--sv-surface);
       border: 1px solid rgba(34,197,94,0.3);
       border-radius: var(--radius-xl);
       padding: 60px 48px;
@@ -102,7 +101,7 @@ import { environment } from '../../../environments/environment';
       max-width: 540px;
       width: calc(100% - 48px);
       margin: 32px 24px;
-      box-shadow: 0 0 80px rgba(34,197,94,0.1), var(--pf-shadow);
+      box-shadow: 0 0 80px rgba(34,197,94,0.1), var(--sv-shadow);
       animation: fadeInUp 0.6s ease;
       overflow: hidden;
 
@@ -114,7 +113,7 @@ import { environment } from '../../../environments/environment';
         span { color: #22c55e; }
       }
 
-      p { font-size: 16px; color: var(--pf-text-muted); margin-bottom: 32px; }
+      p { font-size: 16px; color: var(--sv-text-muted); margin-bottom: 32px; }
     }
 
     .success-card__icon {
@@ -128,8 +127,8 @@ import { environment } from '../../../environments/environment';
     }
 
     .success-card__ref {
-      background: var(--pf-surface-2);
-      border: 1px solid var(--pf-border-2);
+      background: var(--sv-surface-2);
+      border: 1px solid var(--sv-border-2);
       border-radius: var(--radius-lg);
       padding: 20px;
       margin-bottom: 16px;
@@ -139,7 +138,7 @@ import { environment } from '../../../environments/environment';
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 2px;
-        color: var(--pf-text-muted);
+        color: var(--sv-text-muted);
         margin-bottom: 8px;
       }
 
@@ -153,7 +152,7 @@ import { environment } from '../../../environments/environment';
 
     .success-card__amount {
       font-size: 14px;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
       margin-bottom: 32px;
 
       strong { color: white; font-size: 16px; }
@@ -169,10 +168,10 @@ import { environment } from '../../../environments/environment';
 
     .success-card__links {
       font-size: 13px;
-      color: var(--pf-text-muted);
+      color: var(--sv-text-muted);
 
       .link-cyan {
-        color: var(--pf-primary);
+        color: var(--sv-primary);
         font-weight: 600;
         display: block;
         margin-top: 4px;

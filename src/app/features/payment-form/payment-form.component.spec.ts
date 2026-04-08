@@ -321,6 +321,7 @@ describe('PaymentFormComponent', () => {
   it('defaults to the secure card flow', () => {
     const { component } = createComponent();
     expect(component.paymentMethod()).toBe('card');
+    expect(component.selectedPaymentMethod()).toBe('card');
   });
 
   it('handles mock payment failure navigation', async () => {
@@ -1629,7 +1630,7 @@ describe('PaymentFormComponent', () => {
     expect(component.cardError()).toContain('Your room is reserved');
   });
 
-  it('payWithRazorpay uses INR fallback when order has no currency and maps gpay to upi prefill', async () => {
+  it('payWithRazorpay uses INR fallback when order has no currency and prefills upi method', async () => {
     const { component } = createComponent();
     component.bookingAmount.set(300);
     component.bookingId.set(7);
@@ -1649,7 +1650,7 @@ describe('PaymentFormComponent', () => {
       // no currency, no transaction_ref
     }));
 
-    const p = component.payWithRazorpay('gpay');
+    const p = component.payWithRazorpay('upi');
     await jest.runAllTimersAsync();
     await p;
 
@@ -1763,6 +1764,174 @@ describe('PaymentFormComponent', () => {
     );
 
     delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('payWithRazorpay payment.failed records the gateway failure and shows the retry message', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
+
+    let paymentFailedHandler: ((response: { error?: { description?: string } }) => void) | undefined;
+
+    const MockRazorpay = jest.fn().mockImplementation(() => ({
+      open: jest.fn(),
+      on: jest.fn((event: string, callback: (response: { error?: { description?: string } }) => void) => {
+        if (event === 'payment.failed') {
+          paymentFailedHandler = callback;
+        }
+      }),
+    }));
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc',
+      amount: 25000,
+      currency: 'INR',
+      booking_id: 7,
+      key_id: 'rzp_test',
+      amount_paise: 2500000,
+      transaction_ref: 'TXN-RZP-FAIL',
+    }));
+    paymentService.recordFailure.mockReturnValue(of({}));
+
+    const pending = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await pending;
+
+    paymentFailedHandler?.({ error: { description: 'UPI collect request failed' } });
+
+    expect(paymentService.recordFailure).toHaveBeenCalledWith(
+      7,
+      'UPI collect request failed',
+      undefined,
+      'TXN-RZP-FAIL',
+    );
+    expect(component.cardError()).toBe('UPI collect request failed. Please try again.');
+    expect(component.processing()).toBe(false);
+    expect(component.step()).toBe('details');
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('payWithRazorpay payment.failed starts cooldown after max retries', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
+    component.retryCount.set(component.maxRetries - 1);
+
+    let paymentFailedHandler: ((response: { error?: { description?: string } }) => void) | undefined;
+
+    const MockRazorpay = jest.fn().mockImplementation(() => ({
+      open: jest.fn(),
+      on: jest.fn((event: string, callback: (response: { error?: { description?: string } }) => void) => {
+        if (event === 'payment.failed') {
+          paymentFailedHandler = callback;
+        }
+      }),
+    }));
+    (window as unknown as { Razorpay: unknown }).Razorpay = MockRazorpay;
+
+    paymentService.createRazorpayOrder.mockReturnValue(of({
+      order_id: 'order_abc',
+      amount: 25000,
+      currency: 'INR',
+      booking_id: 7,
+      key_id: 'rzp_test',
+      amount_paise: 2500000,
+      transaction_ref: 'TXN-RZP-COOLDOWN',
+    }));
+    paymentService.recordFailure.mockReturnValue(of({}));
+
+    const pending = component.payWithRazorpay('upi');
+    await jest.runAllTimersAsync();
+    await pending;
+
+    paymentFailedHandler?.({ error: {} });
+
+    expect(paymentService.recordFailure).toHaveBeenCalledWith(
+      7,
+      'Payment failed',
+      undefined,
+      'TXN-RZP-COOLDOWN',
+    );
+    expect(component.retryCooldownSecondsLeft()).toBeGreaterThan(0);
+    expect(component.cardError()).toContain('Too many failed attempts');
+
+    delete (window as unknown as { Razorpay?: unknown }).Razorpay;
+  });
+
+  it('payWithRazorpay blocks retries while the cooldown timer is active', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
+    component.retryCooldownSecondsLeft.set(75);
+
+    await component.payWithRazorpay('upi');
+
+    expect(component.cardError()).toBe('Retry available in 01:15.');
+    expect(paymentService.createRazorpayOrder).not.toHaveBeenCalled();
+  });
+
+  it('payWithRazorpay surfaces backend conflict and gateway availability branches', async () => {
+    const { component } = createComponent();
+    component.bookingAmount.set(300);
+    component.bookingId.set(7);
+    component.holdSecondsLeft.set(600);
+    jest
+      .spyOn(component as unknown as { loadRazorpayScript: () => Promise<void> }, 'loadRazorpayScript')
+      .mockResolvedValue();
+
+    paymentService.createRazorpayOrder.mockReturnValueOnce(
+      throwError(() => ({ status: 409, error: { detail: 'Dates are blocked' } })),
+    );
+    await component.payWithRazorpay('upi');
+    expect(component.cardError()).toBe('Dates are blocked');
+
+    paymentService.createRazorpayOrder.mockReturnValueOnce(
+      throwError(() => ({ status: 409, error: { detail: 'Booking already paid' } })),
+    );
+    jest.spyOn(component as unknown as PaymentFormComponentPrivateState, 'verifyConfirmedPayment').mockResolvedValue(false);
+    await component.payWithRazorpay('upi');
+    expect(component.cardError()).toBe('Payment may already be completed. Please check your booking status.');
+
+    paymentService.createRazorpayOrder.mockReturnValueOnce(
+      throwError(() => ({ status: 400, error: { detail: { message: 'bad object detail' } } })),
+    );
+    await component.payWithRazorpay('upi');
+    expect(component.cardError()).toBe('This booking cannot be paid for.');
+
+    paymentService.createRazorpayOrder.mockReturnValueOnce(
+      throwError(() => ({ status: 502 })),
+    );
+    await component.payWithRazorpay('upi');
+    expect(component.cardError()).toBe('Payment gateway is temporarily unavailable. Please try again.');
+
+    paymentService.createRazorpayOrder.mockReturnValueOnce(
+      throwError(() => ({ status: 503 })),
+    );
+    await component.payWithRazorpay('upi');
+    expect(component.cardError()).toBe('Razorpay is not available. Please try again later.');
+  });
+
+  it('switches to Razorpay when card payments are disabled by the backend', async () => {
+    const { component } = createComponent();
+    setupReadyComponent(component);
+
+    paymentService.createPaymentIntent.mockReturnValue(
+      throwError(() => ({
+        status: 503,
+        error: { detail: { code: 'STRIPE_DISABLED' } },
+      })),
+    );
+
+    await component.processCardPayment();
+
+    expect(component.uiState()).toBe('idle');
+    expect(component.selectedPaymentMethod()).toBe('upi');
+    expect(component.cardError()).toBe('Card payments are temporarily unavailable. Please pay via UPI, GPay, or PhonePe.');
   });
 
   it('409 conflict uses default message when detailMessage is empty', async () => {
