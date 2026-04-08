@@ -70,11 +70,11 @@ jobs:
         run: npm run build:prod
 
       - name: Verify output directory exists
-        run: test -d dist/payflow-payment-app/browser
+        run: test -d dist/stayvora-pay
 
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
         with:
           name: payflow-dist
-          path: dist/payflow-payment-app/browser/
+          path: dist/stayvora-pay/
           retention-days: 7
