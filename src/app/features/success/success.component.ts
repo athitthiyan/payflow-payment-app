@@ -96,24 +96,24 @@ import { environment } from '../../../environments/environment';
       background: var(--sv-surface);
       border: 1px solid rgba(34,197,94,0.3);
       border-radius: var(--radius-xl);
-      padding: 60px 48px;
+      padding: clamp(24px, 6vw, 60px) clamp(24px, 5vw, 48px);
       text-align: center;
       max-width: 540px;
-      width: calc(100% - 48px);
-      margin: 32px 24px;
+      width: calc(100% - clamp(24px, 6vw, 48px));
+      margin: clamp(16px, 4vw, 32px) auto;
       box-shadow: 0 0 80px rgba(34,197,94,0.1), var(--sv-shadow);
       animation: fadeInUp 0.6s ease;
       overflow: hidden;
 
       h1 {
         font-family: 'Space Grotesk', sans-serif;
-        font-size: 2.5rem;
+        font-size: clamp(1.6rem, 5vw, 2.5rem);
         color: white;
-        margin: 24px 0 12px;
+        margin: clamp(16px, 3vw, 24px) 0 clamp(8px, 2vw, 12px);
         span { color: #22c55e; }
       }
 
-      p { font-size: 16px; color: var(--sv-text-muted); margin-bottom: 32px; }
+      p { font-size: clamp(14px, 2.5vw, 16px); color: var(--sv-text-muted); margin-bottom: clamp(16px, 4vw, 32px); }
     }
 
     .success-card__icon {
@@ -130,23 +130,24 @@ import { environment } from '../../../environments/environment';
       background: var(--sv-surface-2);
       border: 1px solid var(--sv-border-2);
       border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 16px;
+      padding: clamp(14px, 3vw, 20px);
+      margin-bottom: clamp(12px, 2vw, 16px);
 
       span {
         display: block;
-        font-size: 11px;
+        font-size: clamp(9px, 1.5vw, 11px);
         text-transform: uppercase;
-        letter-spacing: 2px;
+        letter-spacing: 1px;
         color: var(--sv-text-muted);
-        margin-bottom: 8px;
+        margin-bottom: clamp(6px, 1.5vw, 8px);
       }
 
       strong {
         font-family: monospace;
-        font-size: 1.3rem;
+        font-size: clamp(1rem, 2.5vw, 1.3rem);
         color: #22c55e;
-        letter-spacing: 2px;
+        letter-spacing: 1px;
+        word-break: break-all;
       }
     }
 

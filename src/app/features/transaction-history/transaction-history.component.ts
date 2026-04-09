@@ -104,8 +104,8 @@ import { Transaction } from '../../core/models/transaction.model';
   `,
   styles: [`
     .txn-page {
-      padding-top: 100px;
-      padding-bottom: 80px;
+      padding-top: clamp(70px, 10vw, 100px);
+      padding-bottom: clamp(40px, 8vw, 80px);
       min-height: 100vh;
     }
 
@@ -113,16 +113,16 @@ import { Transaction } from '../../core/models/transaction.model';
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      margin-bottom: 32px;
+      margin-bottom: clamp(16px, 4vw, 32px);
 
       h1 {
         font-family: 'Playfair Display', Georgia, serif;
-        font-size: 2rem;
+        font-size: clamp(1.4rem, 5vw, 2rem);
         color: white;
         span { color: var(--sv-gold); }
       }
 
-      p { font-size: 14px; color: var(--sv-text-muted); margin-top: 6px; }
+      p { font-size: clamp(12px, 2.5vw, 14px); color: var(--sv-text-muted); margin-top: 6px; }
 
       @media (max-width: 600px) { flex-direction: column; align-items: flex-start; gap: 16px; }
     }
@@ -142,20 +142,20 @@ import { Transaction } from '../../core/models/transaction.model';
     .stat-card {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 20px;
+      gap: clamp(12px, 2vw, 16px);
+      padding: clamp(14px, 3vw, 20px);
       background: var(--sv-surface);
       border: 1px solid var(--sv-border);
       border-radius: var(--radius-lg);
 
       strong {
         display: block;
-        font-size: 1.3rem;
+        font-size: clamp(1rem, 2.5vw, 1.3rem);
         font-weight: 800;
         color: white;
       }
 
-      span { font-size: 13px; color: var(--sv-text-muted); }
+      span { font-size: clamp(11px, 2vw, 13px); color: var(--sv-text-muted); }
     }
 
     .stat-card__icon { font-size: 1.8rem; }
@@ -172,12 +172,12 @@ import { Transaction } from '../../core/models/transaction.model';
       border-collapse: collapse;
 
       th {
-        padding: 14px 20px;
+        padding: clamp(10px, 2vw, 14px) clamp(12px, 3vw, 20px);
         text-align: left;
-        font-size: 11px;
+        font-size: clamp(9px, 1.5vw, 11px);
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 0.5px;
         color: var(--sv-gold);
         border-bottom: 1px solid var(--sv-border);
         background: rgba(214,184,107,0.03);
@@ -187,8 +187,26 @@ import { Transaction } from '../../core/models/transaction.model';
     }
 
     .txn-row {
-      td { padding: 16px 20px; font-size: 14px; color: var(--sv-text-muted); }
+      td { padding: clamp(12px, 2vw, 16px) clamp(12px, 3vw, 20px); font-size: clamp(12px, 2vw, 14px); color: var(--sv-text-muted); }
       &:hover td { background: rgba(255,255,255,0.02); }
+    }
+
+    @media (max-width: 768px) {
+      .txn-table th {
+        padding: 10px 12px;
+        font-size: 9px;
+        letter-spacing: 0px;
+      }
+
+      .txn-row td {
+        padding: 12px;
+        font-size: 12px;
+      }
+
+      .txn-ref { font-size: 10px !important; }
+      .txn-amount { font-size: 13px !important; }
+      .txn-method { font-size: 11px; }
+      .txn-date { font-size: 10px !important; }
     }
 
     .txn-ref {
@@ -205,10 +223,10 @@ import { Transaction } from '../../core/models/transaction.model';
 
     .txn-empty {
       text-align: center;
-      padding: 80px 20px;
-      span { font-size: 3rem; display: block; margin-bottom: 16px; }
-      h3 { font-size: 1.3rem; color: white; margin-bottom: 8px; }
-      p { color: var(--sv-text-muted); }
+      padding: clamp(40px, 10vw, 80px) clamp(16px, 4vw, 20px);
+      span { font-size: clamp(2rem, 6vw, 3rem); display: block; margin-bottom: clamp(12px, 3vw, 16px); }
+      h3 { font-size: clamp(1rem, 3vw, 1.3rem); color: white; margin-bottom: 8px; }
+      p { color: var(--sv-text-muted); font-size: clamp(13px, 2vw, 14px); }
     }
 
     .txn-pagination {

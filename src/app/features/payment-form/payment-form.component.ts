@@ -402,15 +402,25 @@ interface PaymentErrorShape {
       width: 100%;
       max-width: 1100px;
       margin: 0 auto;
-      padding: 48px 32px;
+      padding: clamp(16px, 5vw, 48px) var(--layout-padding-x);
       display: grid;
       grid-template-columns: 1fr 380px;
-      gap: 40px;
+      gap: clamp(20px, 4vw, 40px);
       align-items: start;
     }
 
     @media (max-width: 1024px) {
-      .payment-page__inner { grid-template-columns: 1fr; }
+      .payment-page__inner {
+        grid-template-columns: 1fr;
+        gap: clamp(16px, 3vw, 32px);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .payment-page__inner {
+        padding: clamp(12px, 4vw, 20px) var(--layout-padding-x);
+        gap: clamp(12px, 2vw, 20px);
+      }
     }
 
     .bg-orb {
@@ -449,13 +459,13 @@ interface PaymentErrorShape {
     }
 
     /* Header */
-    .pf-header { margin-bottom: 32px; animation: fadeInUp 0.5s ease; }
+    .pf-header { margin-bottom: clamp(16px, 4vw, 32px); animation: fadeInUp 0.5s ease; }
 
     .back-link {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 18px;
+      margin-bottom: clamp(12px, 3vw, 18px);
       padding: 0;
       border: 0;
       background: transparent;
@@ -464,6 +474,7 @@ interface PaymentErrorShape {
       font-weight: 700;
       cursor: pointer;
       transition: color 0.2s, transform 0.2s;
+      font-size: clamp(13px, 2vw, 14px);
     }
 
     .back-link:hover {
@@ -488,14 +499,16 @@ interface PaymentErrorShape {
 
     .pf-header__title {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: clamp(2rem, 4vw, 3rem);
+      font-size: clamp(1.5rem, 5vw, 3rem);
       font-weight: 700;
       color: white;
-      margin-bottom: 8px;
+      margin-bottom: clamp(6px, 2vw, 8px);
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
 
     .pf-header__title span { color: var(--sv-primary); }
-    .pf-header__sub { font-size: 14px; color: var(--sv-text-muted); }
+    .pf-header__sub { font-size: clamp(12px, 2.5vw, 14px); color: var(--sv-text-muted); }
 
     /* Alert */
     .alert {
@@ -642,7 +655,7 @@ interface PaymentErrorShape {
     /* Processing */
     .processing-state {
       text-align: center;
-      padding: 60px 20px;
+      padding: clamp(30px, 6vw, 60px) var(--layout-padding-x);
       animation: fadeInUp 0.5s ease;
     }
 
@@ -718,16 +731,20 @@ interface PaymentErrorShape {
       background: var(--sv-surface);
       border: 1px solid var(--sv-border-2);
       border-radius: var(--radius-xl);
-      padding: 28px;
+      padding: clamp(16px, 4vw, 28px);
       box-shadow: var(--sv-shadow);
       animation: fadeInUp 0.5s ease 0.1s both;
     }
 
+    @media (max-width: 1024px) {
+      .payment-summary { position: static; }
+    }
+
     .payment-summary__card h3 {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: 1.2rem;
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
       color: white;
-      margin-bottom: 16px;
+      margin-bottom: clamp(12px, 2vw, 16px);
     }
 
     .payment-summary__room {
@@ -866,7 +883,7 @@ interface PaymentErrorShape {
       flex-direction: column;
       align-items: center;
       text-align: center;
-      padding: 56px 32px;
+      padding: clamp(24px, 6vw, 56px) var(--layout-padding-x);
       border-radius: var(--radius-xl);
       border: 1px solid var(--sv-border);
       background: var(--sv-surface);

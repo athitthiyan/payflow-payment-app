@@ -30,6 +30,40 @@
   --radius-lg:  16px;
   --radius-xl:  24px;
   --radius-full: 9999px;
+
+  /* Responsive Layout Padding - Mobile-first approach */
+  --layout-padding-x: 16px;
+  --layout-padding-y: 20px;
+  --container-max-width: 1200px;
+}
+
+/* Mobile-first breakpoints */
+@media (min-width: 480px) {
+  :root {
+    --layout-padding-x: 20px;
+    --layout-padding-y: 24px;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --layout-padding-x: 28px;
+    --layout-padding-y: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --layout-padding-x: 32px;
+    --layout-padding-y: 40px;
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --layout-padding-x: 40px;
+    --layout-padding-y: 48px;
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -70,9 +104,9 @@ input, select, textarea { font-family: inherit; }
 }
 
 .container {
-  max-width: 1200px;
+  max-width: var(--container-max-width);
   margin: 0 auto;
-  padding: 0 32px;
+  padding: 0 var(--layout-padding-x);
 }
 
 .btn {

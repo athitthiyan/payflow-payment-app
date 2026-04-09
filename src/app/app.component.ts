@@ -42,21 +42,23 @@ import { RouterOutlet, RouterLink } from '@angular/router';
     .sv-header__inner {
       max-width: 1280px;
       margin: 0 auto;
-      padding: 0 32px;
+      padding: 0 var(--layout-padding-x);
       display: flex;
       align-items: center;
-      gap: 32px;
+      gap: clamp(12px, 4vw, 32px);
+      flex-wrap: wrap;
     }
 
     .sv-header__logo {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: clamp(6px, 2vw, 10px);
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 1.3rem;
+      font-size: clamp(1rem, 2.5vw, 1.3rem);
       font-weight: 700;
       color: #f0f4ff;
       flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .sv-header__logo em {
@@ -66,14 +68,18 @@ import { RouterOutlet, RouterLink } from '@angular/router';
 
     .sv-header__nav {
       display: flex;
-      gap: 24px;
+      gap: clamp(12px, 3vw, 24px);
       margin-left: auto;
+      flex-shrink: 1;
     }
 
     .sv-header__nav a {
-      font-size: 14px;
+      font-size: clamp(12px, 2.5vw, 14px);
       color: rgba(255,255,255,0.6);
       transition: color 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .sv-header__nav a:hover {
@@ -81,12 +87,25 @@ import { RouterOutlet, RouterLink } from '@angular/router';
     }
 
     .sv-header__badge {
-      font-size: 12px;
+      font-size: clamp(10px, 2vw, 12px);
       color: rgba(255,255,255,0.5);
       border: 1px solid rgba(255,255,255,0.1);
-      padding: 4px 12px;
+      padding: clamp(4px, 1vw, 8px) clamp(8px, 2vw, 12px);
       border-radius: 20px;
       flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    @media (max-width: 480px) {
+      .sv-header__nav a {
+        font-size: 11px;
+      }
+
+      .sv-header__badge {
+        display: none;
+      }
     }
   `]
 })

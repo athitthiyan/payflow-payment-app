@@ -70,32 +70,34 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       background: var(--sv-surface);
       border: 1px solid rgba(239,68,68,0.3);
       border-radius: var(--radius-xl);
-      padding: 60px 48px;
+      padding: clamp(24px, 6vw, 60px) clamp(24px, 5vw, 48px);
       text-align: center;
       max-width: 520px;
-      width: calc(100% - 48px);
-      margin: 32px 24px;
+      width: calc(100% - clamp(24px, 6vw, 48px));
+      margin: clamp(16px, 4vw, 32px) auto;
       box-shadow: 0 0 60px rgba(239,68,68,0.1), var(--sv-shadow);
       animation: fadeInUp 0.5s ease;
     }
 
     .failure-card h1 {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: 2.2rem;
+      font-size: clamp(1.6rem, 5vw, 2.2rem);
       color: white;
-      margin-bottom: 12px;
+      margin-bottom: clamp(8px, 2vw, 12px);
     }
 
     .failure-card h1 span { color: #ef4444; }
 
     .failure-card > p {
-      font-size: 15px;
+      font-size: clamp(13px, 2.5vw, 15px);
       color: var(--sv-text-muted);
-      margin-bottom: 32px;
-      padding: 12px 20px;
+      margin-bottom: clamp(16px, 4vw, 32px);
+      padding: clamp(10px, 2vw, 12px) clamp(14px, 3vw, 20px);
       background: rgba(239,68,68,0.08);
       border: 1px solid rgba(239,68,68,0.2);
       border-radius: var(--radius-md);
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
 
     .failure-card__icon {
@@ -111,20 +113,20 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
       text-align: left;
       background: var(--sv-surface-2);
       border-radius: var(--radius-lg);
-      padding: 20px;
-      margin-bottom: 32px;
+      padding: clamp(14px, 3vw, 20px);
+      margin-bottom: clamp(16px, 4vw, 32px);
     }
 
-    .failure-card__suggestions h4 { font-size: 14px; color: white; margin-bottom: 12px; }
+    .failure-card__suggestions h4 { font-size: clamp(12px, 2.5vw, 14px); color: white; margin-bottom: clamp(8px, 2vw, 12px); }
 
     .failure-card__suggestions ul {
       list-style: none;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: clamp(6px, 1.5vw, 8px);
     }
 
-    .failure-card__suggestions li { font-size: 14px; color: var(--sv-text-muted); }
+    .failure-card__suggestions li { font-size: clamp(12px, 2vw, 14px); color: var(--sv-text-muted); }
 
     .failure-card__actions {
       display: flex;
