@@ -6,4 +6,5 @@ export const environment = {
   bookingAppUrl: PORTAL_URLS.dev.customerPortalUrl as string,
   stripePublishableKey: STRIPE_TEST_KEY,
   stripeEnabled: true,
+  sentryDsn: '',
 };

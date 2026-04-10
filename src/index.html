@@ -22,8 +22,7 @@
       frame-src https://js.stripe.com https://hooks.stripe.com;
       img-src 'self' data: https:
   -->
-  <!-- TODO: M-05 - Stripe.js should be loaded conditionally when stripeEnabled is true, not pre-loaded for all environments. Currently loaded dynamically in payment-form component. -->
-  <!-- <script src="https://js.stripe.com/v3/"></script> -->
+  <!-- Stripe.js is loaded dynamically in payment-form component when stripeEnabled is true -->
 </head>
 <body>
   <app-root></app-root>

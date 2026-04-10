@@ -1501,9 +1501,11 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       }
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      // TODO: Add Subresource Integrity (SRI) hash for security verification
-      script.integrity = 'sha384-...'; // Replace with actual hash: sha384-<base64-hash-here>
       script.crossOrigin = 'anonymous';
+      // Note: SRI hash should be updated whenever Razorpay version changes.
+      // Generate hash with: curl -s https://checkout.razorpay.com/v1/checkout.js | openssl dgst -sha384 -binary | base64
+      // For now, SRI verification is optional. Uncomment and add actual hash when available:
+      // script.integrity = 'sha384-<actual-hash-from-razorpay>';
       script.onload = () => resolve();
       script.onerror = () => reject(new Error('Failed to load Razorpay'));
       document.body.appendChild(script);

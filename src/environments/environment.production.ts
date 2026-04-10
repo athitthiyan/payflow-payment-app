@@ -7,4 +7,5 @@ export const environment = {
   stripePublishableKey: STRIPE_TEST_KEY,
   // Stripe is DISABLED in production until webhook secret is confirmed live
   stripeEnabled: false,
+  sentryDsn: '',
 };
