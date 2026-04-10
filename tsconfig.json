@@ -24,12 +24,10 @@
       "@shared/*": ["src/app/shared/*"],
       "@features/*": ["src/app/features/*"],
       "@env/*": ["src/environments/*"],
-      "@stayvora/models": ["../0-shared-lib/models/index"],
-      "@stayvora/models/*": ["../0-shared-lib/models/*"],
-      "@stayvora/config": ["../0-shared-lib/config/index"],
-      "@stayvora/config/*": ["../0-shared-lib/config/*"],
-      "@stayvora/http": ["../0-shared-lib/http/index"],
-      "@stayvora/http/*": ["../0-shared-lib/http/*"]
+      "@stayvora/models": ["src/app/core/models/shared.model"],
+      "@stayvora/models/*": ["src/app/core/models/*"],
+      "@stayvora/config": ["src/app/core/config/stayvora.config"],
+      "@stayvora/config/*": ["src/app/core/config/*"]
     }
   },
   "angularCompilerOptions": {

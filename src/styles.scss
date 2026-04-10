@@ -1,5 +1,5 @@
 // Stayvora Pay — imports shared design system + app-specific overrides
-@use 'tokens' as *;
+@use 'styles/tokens' as *;
 
 // ── Apply shared design tokens as CSS custom properties ──
 :root {
@@ -8,6 +8,6 @@
 }
 
 // ── Shared reset, animations, and component classes ──
-@import 'reset';
-@import 'animations';
-@import 'components';
+@import 'styles/reset';
+@import 'styles/animations';
+@import 'styles/components';

@@ -33,7 +33,7 @@
               "src/styles.scss"
             ],
             "stylePreprocessorOptions": {
-              "includePaths": ["../0-shared-lib/styles"]
+              "includePaths": ["src"]
             },
             "scripts": []
           },
@@ -63,6 +63,11 @@
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "headers": {
+              "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://checkout.razorpay.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https:; frame-src https://js.stripe.com https://hooks.stripe.com https://api.razorpay.com; img-src 'self' data: https:"
+            }
+          },
           "configurations": {
             "production": {
               "buildTarget": "stayvora-pay:build:production"

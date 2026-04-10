@@ -1,7 +1,7 @@
-import type { TransactionStatus, RoomSummary } from '@stayvora/models';
+import type { TransactionStatus, RoomSummary } from './shared.model';
 
 // Re-export for convenience within the payment app
-export type { TransactionStatus } from '@stayvora/models';
+export type { TransactionStatus } from './shared.model';
 
 export interface Transaction {
   id: number;

@@ -1,0 +1,85 @@
+$sv-gold: #d6b86b;
+$sv-gold-light: #f0d58f;
+$sv-gold-dark: #a7843c;
+$sv-success: #22c55e;
+$sv-error: #ef4444;
+$sv-warning: #f59e0b;
+
+$sv-bg: #071119;
+$sv-bg-2: #0b1622;
+$sv-bg-3: #122538;
+$sv-surface: #162435;
+$sv-surface-2: #1b2d44;
+$sv-border: rgba(255, 255, 255, 0.07);
+$sv-border-2: rgba(255, 255, 255, 0.12);
+
+$sv-text: #f0f4ff;
+$sv-text-muted: #8a9bbf;
+$sv-text-subtle: #4e5e7a;
+
+$sv-gradient: linear-gradient(135deg, $sv-bg 0%, $sv-bg-2 50%, $sv-bg-3 100%);
+$sv-gradient-gold: linear-gradient(135deg, $sv-gold 0%, $sv-gold-light 48%, #c89f4f 100%);
+$sv-glow-gold: 0 0 40px rgba(214, 184, 107, 0.2);
+$sv-glow-green: 0 0 40px rgba(34, 197, 94, 0.2);
+$sv-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+
+$radius-sm: 6px;
+$radius-md: 12px;
+$radius-lg: 16px;
+$radius-xl: 24px;
+$radius-full: 9999px;
+
+@mixin sv-tokens {
+  --sv-gold: #{$sv-gold};
+  --sv-gold-light: #{$sv-gold-light};
+  --sv-gold-dark: #{$sv-gold-dark};
+  --sv-success: #{$sv-success};
+  --sv-error: #{$sv-error};
+  --sv-warning: #{$sv-warning};
+  --sv-bg: #{$sv-bg};
+  --sv-bg-2: #{$sv-bg-2};
+  --sv-bg-3: #{$sv-bg-3};
+  --sv-surface: #{$sv-surface};
+  --sv-surface-2: #{$sv-surface-2};
+  --sv-border: #{$sv-border};
+  --sv-border-2: #{$sv-border-2};
+  --sv-text: #{$sv-text};
+  --sv-text-muted: #{$sv-text-muted};
+  --sv-text-subtle: #{$sv-text-subtle};
+  --sv-gradient: #{$sv-gradient};
+  --sv-gradient-gold: #{$sv-gradient-gold};
+  --sv-glow-gold: #{$sv-glow-gold};
+  --sv-glow-green: #{$sv-glow-green};
+  --sv-shadow: #{$sv-shadow};
+  --radius-sm: #{$radius-sm};
+  --radius-md: #{$radius-md};
+  --radius-lg: #{$radius-lg};
+  --radius-xl: #{$radius-xl};
+  --radius-full: #{$radius-full};
+}
+
+@mixin sv-layout-tokens {
+  --layout-padding-x: 16px;
+  --layout-padding-y: 20px;
+  --container-max-width: 1200px;
+
+  @media (min-width: 480px) {
+    --layout-padding-x: 20px;
+    --layout-padding-y: 24px;
+  }
+
+  @media (min-width: 768px) {
+    --layout-padding-x: 28px;
+    --layout-padding-y: 32px;
+  }
+
+  @media (min-width: 1024px) {
+    --layout-padding-x: 32px;
+    --layout-padding-y: 40px;
+  }
+
+  @media (min-width: 1440px) {
+    --layout-padding-x: 40px;
+    --layout-padding-y: 48px;
+  }
+}

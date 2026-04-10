@@ -21,8 +21,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PaymentCooldownDetail, PaymentService } from '../../core/services/payment.service';
 import { environment } from '../../../environments/environment';
 
-// TODO: Add changeDetection: ChangeDetectionStrategy.OnPush for better performance with signals
-
 type PaymentStep = 'details' | 'processing';
 type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expired' | 'conflict';
 
@@ -94,6 +92,7 @@ interface PaymentErrorShape {
 @Component({
   selector: 'app-payment-form',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule],
   template: `
     <div class="payment-page">
