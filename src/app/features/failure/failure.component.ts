@@ -153,12 +153,37 @@ export class FailureComponent implements OnInit, OnDestroy {
   private countdownInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit() {
+    // M-09: Validate and sanitize query parameters
     const reason = this.route.snapshot.queryParamMap.get('reason');
-    if (reason) this.reason = reason;
-    this.bookingId = this.route.snapshot.queryParamMap.get('booking_id') || '';
-    this.holdExpiresAt = this.route.snapshot.queryParamMap.get('hold_expires_at') || '';
+    if (reason) this.reason = this.sanitizeReason(reason);
+    this.bookingId = this.sanitizeRef(this.route.snapshot.queryParamMap.get('booking_id')) || '';
+    this.holdExpiresAt = this.validateIsoDate(this.route.snapshot.queryParamMap.get('hold_expires_at')) || '';
     if (this.holdExpiresAt) {
       this.startCountdown(this.holdExpiresAt);
+    }
+  }
+
+  private sanitizeReason(reason: string): string {
+    if (!reason) return 'Your payment could not be processed.';
+    // Remove any HTML tags and truncate to safe length
+    const clean = reason.replace(/<[^>]*>/g, '').trim();
+    return clean.length > 200 ? clean.substring(0, 200) : clean;
+  }
+
+  private sanitizeRef(ref: string | null): string {
+    if (!ref) return '';
+    // Only allow safe alphanumeric characters with common separators
+    return /^[a-zA-Z0-9_-]{1,100}$/.test(ref) ? ref : '';
+  }
+
+  private validateIsoDate(date: string | null): string {
+    if (!date) return '';
+    // Basic ISO 8601 date validation
+    try {
+      const d = new Date(date);
+      return Number.isFinite(d.getTime()) ? date : '';
+    } catch {
+      return '';
     }
   }
 

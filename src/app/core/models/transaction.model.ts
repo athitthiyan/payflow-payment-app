@@ -1,4 +1,7 @@
-export type TransactionStatus = 'pending' | 'processing' | 'success' | 'failed' | 'expired' | 'refunded';
+import type { TransactionStatus, RoomSummary } from '@stayvora/models';
+
+// Re-export for convenience within the payment app
+export type { TransactionStatus } from '@stayvora/models';
 
 export interface Transaction {
   id: number;
@@ -18,7 +21,7 @@ export interface Transaction {
     booking_ref: string;
     user_name: string;
     email: string;
-    room?: { hotel_name: string; image_url?: string; location?: string };
+    room?: RoomSummary;
     check_in: string;
     check_out: string;
     nights: number;

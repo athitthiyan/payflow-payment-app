@@ -11,9 +11,19 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'%3E%3Crect width='32' height='32' rx='8' fill='%230f2033'/%3E%3Cpath d='M9 20C9 15 13 12 18 12C23 12 21 15.5 16.5 17C12 18.5 10.5 21.5 15 23C19.5 24.5 23 22 23 19.5' stroke='%23d6b86b' stroke-width='2.4' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='14' cy='9' r='1.6' fill='%23d6b86b' opacity='.75'/%3E%3C/svg%3E" />
-  <!-- CSP: http://localhost:* is needed for local dev API; production builds override via server headers -->
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https: http://localhost:*; frame-src https://js.stripe.com https://hooks.stripe.com; img-src 'self' data: https:" />
-  <script src="https://js.stripe.com/v3/"></script>
+  <!--
+    CSP is enforced via HTTP server headers in production (not a meta tag).
+    Angular 17's Vite dev-server auto-injects 'strict-dynamic' into <meta> CSP
+    which breaks script loading.  Production CSP should include:
+      script-src 'self' https://js.stripe.com https://checkout.razorpay.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      connect-src 'self' https: http://localhost:*;
+      frame-src https://js.stripe.com https://hooks.stripe.com;
+      img-src 'self' data: https:
+  -->
+  <!-- TODO: M-05 - Stripe.js should be loaded conditionally when stripeEnabled is true, not pre-loaded for all environments. Currently loaded dynamically in payment-form component. -->
+  <!-- <script src="https://js.stripe.com/v3/"></script> -->
 </head>
 <body>
   <app-root></app-root>

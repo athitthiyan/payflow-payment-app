@@ -32,6 +32,9 @@
             "styles": [
               "src/styles.scss"
             ],
+            "stylePreprocessorOptions": {
+              "includePaths": ["../0-shared-lib/styles"]
+            },
             "scripts": []
           },
           "configurations": {

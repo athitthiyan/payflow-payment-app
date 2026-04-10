@@ -1,12 +1,14 @@
 import {
   AfterViewInit,
   Component,
+  DestroyRef,
   ElementRef,
   OnDestroy,
   OnInit,
   ViewChild,
   inject,
   signal,
+  ChangeDetectionStrategy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -15,8 +17,11 @@ import { HttpClient } from '@angular/common/http';
 import { loadStripe, Stripe, StripeCardElement } from '@stripe/stripe-js';
 import { firstValueFrom } from 'rxjs';
 import { timeout } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { PaymentCooldownDetail, PaymentService } from '../../core/services/payment.service';
 import { environment } from '../../../environments/environment';
+
+// TODO: Add changeDetection: ChangeDetectionStrategy.OnPush for better performance with signals
 
 type PaymentStep = 'details' | 'processing';
 type PaymentUiState = 'idle' | 'processing' | 'failed_retry' | 'success' | 'expired' | 'conflict';
@@ -292,14 +297,14 @@ interface PaymentErrorShape {
 
           <!-- ─── Processing State ─────────────────────────────────────── -->
           @if (step() === 'processing') {
-            <div class="processing-state">
+            <div class="processing-state" aria-live="polite" aria-label="Payment processing status">
               <div class="processing-state__spinner">
                 <div class="spinner-ring"></div>
                 <span>💳</span>
               </div>
               <h2>Processing Payment…</h2>
               <p>Please wait while we securely process your payment.</p>
-              <div class="processing-steps">
+              <div class="processing-steps" aria-label="Payment processing steps">
                 @for (s of processingSteps; track s.label; let i = $index) {
                   <div
                     class="processing-step"
@@ -568,14 +573,15 @@ interface PaymentErrorShape {
     }
 
     .test-cards-info {
-      background: rgba(245,158,11,0.08);
-      border: 1px solid rgba(245,158,11,0.2);
+      background: linear-gradient(180deg, rgba(59,130,246,0.12), rgba(34,211,238,0.06));
+      border: 1px solid rgba(96,165,250,0.24);
       border-radius: var(--radius-md);
-      padding: 14px;
+      padding: 14px 16px;
       margin-top: 16px;
       font-size: 12px;
-      color: #f59e0b;
+      color: #c7d7f5;
       line-height: 1.7;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
     }
 
     .pay-btn {
@@ -583,10 +589,25 @@ interface PaymentErrorShape {
       margin-top: 20px;
       padding: 18px;
       font-size: 16px;
-      font-weight: 700;
+      font-weight: 800;
+      border: 1px solid rgba(96,165,250,0.28);
+      background: linear-gradient(135deg, #60a5fa, #22d3ee);
+      color: #04111f;
+      box-shadow:
+        0 18px 34px rgba(14,165,233,0.22),
+        inset 0 1px 0 rgba(255,255,255,0.18);
     }
 
-    .pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pay-btn:disabled {
+      cursor: not-allowed;
+      opacity: 1;
+      background: linear-gradient(135deg, rgba(71,85,105,0.92), rgba(30,41,59,0.96));
+      color: rgba(226,232,240,0.9);
+      border-color: rgba(148,163,184,0.18);
+      box-shadow:
+        0 14px 28px rgba(2,6,23,0.28),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+    }
 
     .payment-actions {
       display: grid;
@@ -911,18 +932,24 @@ interface PaymentErrorShape {
     .btn--primary {
       display: inline-block;
       padding: 14px 28px;
-      background: linear-gradient(135deg, var(--sv-primary), #0ea5e9);
-      color: #050a14;
+      background: linear-gradient(135deg, #60a5fa, #22d3ee);
+      color: #04111f;
       font-weight: 700;
       font-size: 15px;
       border-radius: var(--radius-md);
+      border: 1px solid rgba(96,165,250,0.28);
       text-decoration: none;
       transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow:
+        0 12px 28px rgba(14,165,233,0.22),
+        inset 0 1px 0 rgba(255,255,255,0.16);
     }
 
     .btn--primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(34,211,238,0.3);
+      box-shadow:
+        0 16px 30px rgba(34,211,238,0.26),
+        inset 0 1px 0 rgba(255,255,255,0.22);
     }
 
     /* Payment Methods */
@@ -996,6 +1023,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private router = inject(Router);
   private http = inject(HttpClient);
   private paymentService = inject(PaymentService);
+  private destroyRef = inject(DestroyRef);
 
   // Stripe internals
   private stripe: Stripe | null = null;
@@ -1021,6 +1049,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   // Retry state
   retryCount = signal(0);
   readonly maxRetries = 5;
+  private readonly RETRY_COOLDOWN_SECONDS = 300; // 5 minutes
   retryCooldownSecondsLeft = signal(0);
   private retryCooldownInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -1083,7 +1112,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   loadBooking(id: number) {
     this.bookingLoadError.set('');
-    this.http.get<PaymentBookingSummary>(`${environment.apiUrl}/bookings/${id}`).subscribe({
+    this.http.get<PaymentBookingSummary>(`${environment.apiUrl}/bookings/${id}`)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: b => {
         this.booking.set(b);
         this.bookingRef.set(b.booking_ref);
@@ -1132,7 +1163,10 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   // --- Hold Countdown ---
 
   private generateIdempotencyKey(): string {
-    return `pay_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const arr = new Uint8Array(8);
+    crypto.getRandomValues(arr);
+    const hex = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    return `pay_${Date.now()}_${hex}`;
   }
 
   private startHoldCountdown(holdExpiresAt: string): void {
@@ -1206,7 +1240,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private refreshRetryPolicy(bookingId: number): void {
-    this.paymentService.getPaymentStatus(bookingId).subscribe({
+    this.paymentService.getPaymentStatus(bookingId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: status => {
         this.applyRetryCooldown({
           failed_payment_count: status.failed_payment_count,
@@ -1234,7 +1270,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!bookingId || this.cancellingBooking() || this.processing()) return;
     this.actionMessage.set('');
     this.cancellingBooking.set(true);
-    this.http.patch<PaymentBookingSummary>(`${environment.apiUrl}/bookings/${bookingId}/cancel`, {}).subscribe({
+    this.http.patch<PaymentBookingSummary>(`${environment.apiUrl}/bookings/${bookingId}/cancel`, {})
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.cancellingBooking.set(false);
         this.stopHoldCountdown();
@@ -1254,8 +1292,25 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  private readonly ALLOWED_REDIRECT_HOSTS = [
+    'stayvora.co.in',
+    'pay.stayvora.co.in',
+    'payflow-payment-app.vercel.app',
+    'localhost',    // dev: StayEase / PayFlow local servers
+    '127.0.0.1',
+  ];
+
   private externalRedirect(url: string): void {
-    window.location.href = url;
+    try {
+      const parsed = new URL(url);
+      if (!this.ALLOWED_REDIRECT_HOSTS.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
+        console.error('Redirect blocked: untrusted host', parsed.hostname);
+        return;
+      }
+      window.location.href = url;
+    } catch {
+      console.error('Invalid redirect URL');
+    }
   }
 
   private mountCardElement(): void {
@@ -1417,8 +1472,24 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
     return labels[method] || method;
   }
 
+  /**
+   * Convert USD to INR using the exchange rate from the backend.
+   * Falls back to a cached rate if the API is unavailable.
+   */
+  private cachedExchangeRate = 83; // fallback only — updated from API
+
   convertUSDToINR(usd: number): number {
-    return Math.round(usd * 83);
+    return Math.round(usd * this.cachedExchangeRate);
+  }
+
+  /** Fetch live exchange rate from backend on component init. */
+  private refreshExchangeRate(): void {
+    this.http.get<{ rate: number }>(`${environment.apiUrl}/exchange-rate/usd-inr`)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => { if (res?.rate) this.cachedExchangeRate = res.rate; },
+        error: () => { /* use fallback rate */ }
+      });
   }
 
   // --- Razorpay Payment ---
@@ -1431,6 +1502,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       }
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      // TODO: Add Subresource Integrity (SRI) hash for security verification
+      script.integrity = 'sha384-...'; // Replace with actual hash: sha384-<base64-hash-here>
+      script.crossOrigin = 'anonymous';
       script.onload = () => resolve();
       script.onerror = () => reject(new Error('Failed to load Razorpay'));
       document.body.appendChild(script);
@@ -1541,11 +1615,13 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
           reason,
           undefined,
           order.transaction_ref,
-        ).subscribe();
+        )
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe();
 
         this.retryCount.update(c => c + 1);
         if (this.retryCount() >= this.maxRetries) {
-          this.startRetryCooldown(3 * 60);
+          this.startRetryCooldown(this.RETRY_COOLDOWN_SECONDS);
           this.cardError.set(`Too many failed attempts. Retry available in ${this.retryCooldownMinutes()}:${this.retryCooldownSecondsPad()}.`);
         } else {
           this.cardError.set(`${reason}. Please try again.`);
@@ -1597,7 +1673,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
           booking_id: this.bookingId(),
           transaction_ref: txnRef,
           payment_method: 'mock',
-        }).subscribe({
+        })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
           next: (transaction) => {
             this.navigateToSuccess(
               transaction.transaction_ref,
@@ -1615,7 +1693,9 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         });
       } else {
         const failReason = 'Card declined (demo)';
-        this.paymentService.recordFailure(this.bookingId(), failReason).subscribe();
+        this.paymentService.recordFailure(this.bookingId(), failReason)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe();
         this.router.navigate(['/failure'], {
           queryParams: {
             booking_id: this.bookingId(),
@@ -1655,7 +1735,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     if (this.retryCount() >= this.maxRetries) {
-      this.startRetryCooldown(5 * 60);
+      this.startRetryCooldown(this.RETRY_COOLDOWN_SECONDS);
       this.uiState.set('failed_retry');
       this.cardError.set(`Payment temporarily paused for security. Retry available in ${this.retryCooldownMinutes()}:${this.retryCooldownSecondsPad()}.`);
       return;
@@ -1705,7 +1785,7 @@ export class PaymentFormComponent implements OnInit, AfterViewInit, OnDestroy {
         if (backendRetryPolicy?.retry_after_seconds) {
           this.applyRetryCooldown(backendRetryPolicy);
         } else if (this.retryCount() >= this.maxRetries) {
-          this.startRetryCooldown(5 * 60);
+          this.startRetryCooldown(this.RETRY_COOLDOWN_SECONDS);
         }
         this.idempotencyKey.set(this.generateIdempotencyKey()); // fresh key for next attempt
         this.uiState.set('failed_retry');

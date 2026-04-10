@@ -254,14 +254,34 @@ export class SuccessComponent implements OnInit {
   }));
 
   ngOnInit() {
-    this.transactionRef = this.route.snapshot.queryParamMap.get('ref') || 'TXN-PENDING';
-    this.amount = Number(this.route.snapshot.queryParamMap.get('amount') || 0);
-    this.bookingRef = this.route.snapshot.queryParamMap.get('booking_ref') || '';
-    this.bookingId = this.route.snapshot.queryParamMap.get('booking_id') || '';
+    // M-09: Validate and sanitize query parameters
+    this.transactionRef = this.validateTransactionRef(this.route.snapshot.queryParamMap.get('ref')) || 'TXN-PENDING';
+    this.amount = this.validateAmount(this.route.snapshot.queryParamMap.get('amount'));
+    this.bookingRef = this.sanitizeRef(this.route.snapshot.queryParamMap.get('booking_ref')) || '';
+    this.bookingId = this.sanitizeRef(this.route.snapshot.queryParamMap.get('booking_id')) || '';
 
     const bookingUrl = new URL('/booking-confirmation', this.bookingAppUrl);
     if (this.bookingRef) bookingUrl.searchParams.set('ref', this.bookingRef);
     if (this.bookingId) bookingUrl.searchParams.set('booking_id', this.bookingId);
     this.bookingAppUrl = bookingUrl.toString();
+  }
+
+  private validateTransactionRef(ref: string | null): string {
+    if (!ref) return '';
+    // Only allow alphanumeric, hyphen, underscore
+    return /^[a-zA-Z0-9_-]{3,50}$/.test(ref) ? ref : '';
+  }
+
+  private validateAmount(amount: string | null): number {
+    if (!amount) return 0;
+    const num = Number(amount);
+    // Ensure it's a positive number and not NaN
+    return Number.isFinite(num) && num > 0 ? num : 0;
+  }
+
+  private sanitizeRef(ref: string | null): string {
+    if (!ref) return '';
+    // Strip HTML and only allow safe alphanumeric characters with common separators
+    return /^[a-zA-Z0-9_-]{1,100}$/.test(ref) ? ref : '';
   }
 }
