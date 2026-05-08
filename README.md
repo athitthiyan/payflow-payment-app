@@ -11,7 +11,7 @@ Stayvora's payment experience — Stripe checkout, booking confirmation, retry r
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**Live App:** [payflow-payment-app.vercel.app](https://payflow-payment-app.vercel.app) | **Platform:** [stayvora.co.in](https://stayvora.co.in)
+**Live App:** [pay.stayvora.co.in](https://pay.stayvora.co.in) | **Platform:** [stayvora.co.in](https://stayvora.co.in)
 
 </div>
 
