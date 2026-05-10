@@ -1,7 +1,7 @@
 {
   "name": "stayvora-pay",
   "version": "1.0.0",
-  "description": "Stayvora Pay — Secure Payment Gateway",
+  "description": "Stayvora Pay \u2014 Secure Payment Gateway",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --port 4201",
@@ -24,8 +24,6 @@
     "@angular/router": "^17.3.0",
     "@sentry/angular": "^8.0.0",
     "@stripe/stripe-js": "^3.4.0",
-    "@typescript-eslint/types": "^8.59.2",
-    "@typescript-eslint/typescript-estree": "^8.59.2",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.3"
@@ -39,7 +37,6 @@
     "@angular-eslint/template-parser": "21.0.1",
     "@angular/cli": "~17.3.0",
     "@angular/compiler-cli": "^17.3.0",
-    "@esbuild/linux-x64": "^0.28.0",
     "@playwright/test": "^1.44.0",
     "@types/jest": "^29.5.14",
     "@typescript-eslint/eslint-plugin": "7.11.0",
